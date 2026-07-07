@@ -78,12 +78,12 @@ export default async function handler(req, res) {
 
     // Stappen
     let totalSteps = null;
-    if (Array.isArray(steps)) {
+    if (typeof steps === 'number') {
+      totalSteps = steps || null;
+    } else if (Array.isArray(steps)) {
       totalSteps = steps.reduce((s, d) => s + (d.steps || d.totalSteps || 0), 0) || null;
     } else if (steps?.totalSteps != null) {
       totalSteps = steps.totalSteps;
-    } else if (steps?.stepGoal != null) {
-      totalSteps = steps.stepGoal;
     }
 
     // HRV
