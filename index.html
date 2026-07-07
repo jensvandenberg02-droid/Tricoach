@@ -470,7 +470,10 @@ a { color: var(--accent); text-decoration: none; }
     <div id="tab-events" class="tab-pane">
       <div class="section-header">
         <div class="section-title">Wedstrijdkalender</div>
-        <button class="btn btn-primary btn-sm" onclick="openEventModal()">+ Event</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" id="btn-past-events" onclick="togglePastEvents()">📋 Vorige events</button>
+          <button class="btn btn-primary btn-sm" onclick="openEventModal()">+ Event</button>
+        </div>
       </div>
       <div id="events-list"></div>
     </div>
@@ -682,6 +685,7 @@ let DONE_SET = new Set();
 let HEALTH   = [];
 let ACTIVITIES = [];
 let ACCESS_TOKEN = null;
+let SHOW_PAST_EVENTS = false;
 
 // ── BOOT ──────────────────────────────────────────────────────
 (async () => {
@@ -992,9 +996,10 @@ function generatePlan() {
     if (thisWeekEvents.some(e => e.id === evt.id)) {
       phase = 'race';
     } else if (w > 0 && EVENTS.some(e => {
-      const d = new Date(e.date);
-      const prev = new Date(weekStart.getTime() - msPerWk);
-      return d >= prev && d < weekStart;
+      const evDate = new Date(e.date);
+      const recWeeks = { IM: 3, HIM: 2, marathon: 2, 'olympic-tri': 2, 'duathlon': 1, 'sprint-tri': 1, HM: 1 }[e.type] ?? 1;
+      const recEnd = new Date(evDate.getTime() + recWeeks * msPerWk);
+      return weekStart > evDate && weekStart <= recEnd;
     })) {
       phase = 'recovery';
     } else if (weeksToTarget <= 1) {
@@ -1193,17 +1198,31 @@ function renderActivities() {
 }
 
 // ── EVENTS ────────────────────────────────────────────────────
+function togglePastEvents() {
+  SHOW_PAST_EVENTS = !SHOW_PAST_EVENTS;
+  const btn = document.getElementById('btn-past-events');
+  btn.textContent = SHOW_PAST_EVENTS ? '🙈 Vorige verbergen' : '📋 Vorige events';
+  renderEventsTab();
+}
+
 function renderEventsTab() {
   const list = document.getElementById('events-list');
+  const now = new Date(); now.setHours(0,0,0,0);
+  const visible = EVENTS.filter(e => SHOW_PAST_EVENTS || new Date(e.date) >= now);
   if (!EVENTS.length) {
     list.innerHTML = '<div class="empty"><div class="ico">📅</div>Nog geen events toegevoegd.</div>';
     return;
   }
-  list.innerHTML = EVENTS.map(e => {
+  if (!visible.length) {
+    list.innerHTML = '<div class="empty"><div class="ico">✅</div>Geen komende events. Klik "Vorige events" om eerdere races te zien.</div>';
+    return;
+  }
+  list.innerHTML = visible.map(e => {
     const d = new Date(e.date);
+    const isPast = d < now;
     return `
-      <div class="event-row">
-        <div class="event-date-box">
+      <div class="event-row" style="${isPast ? 'opacity:0.45;' : ''}">
+        <div class="event-date-box" style="${isPast ? 'text-decoration:line-through' : ''}">
           <div class="day">${String(d.getDate()).padStart(2,'0')}</div>
           <div class="mon">${monthShort(d)} '${String(d.getFullYear()).slice(2)}</div>
         </div>
@@ -1658,6 +1677,13 @@ function estimateFinishTime(ev) {
 }
 
 // ── STRAVA PACE SYNC ──────────────────────────────────────────
+// Grade-adjusted pace: elke 1% gemiddelde helling voegt ~12 sec/km toe
+function gradeAdjustedPaceSec(moving_time, distance_m, elevation_gain_m) {
+  const rawPaceSec = moving_time / distance_m * 1000; // sec per km
+  const avgGradePct = distance_m > 0 ? (elevation_gain_m / distance_m) * 100 : 0;
+  return rawPaceSec - (avgGradePct * 12); // corrigeer naar vlak-equivalent
+}
+
 async function syncStravaPace() {
   const { data: { session } } = await sb.auth.getSession();
   const token = session?.provider_token;
@@ -1665,32 +1691,53 @@ async function syncStravaPace() {
 
   toast('Strava activiteiten laden…', 'success');
   try {
-    const res = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=50', {
+    const res = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=100', {
       headers: { 'Authorization': `Bearer ${token}` },
     });
     const acts = await res.json();
     if (!Array.isArray(acts)) { toast('Fout bij laden Strava data.', 'error'); return; }
 
-    // Run pace: gemiddelde van 5 recentste runs > 2km
-    const runs = acts.filter(a => (a.type === 'Run' || a.sport_type === 'Run') && a.distance > 2000);
+    const isType = (a, t) => a.type === t || a.sport_type === t;
+    let found = [];
+
+    // Run pace: elevation-adjusted, recentste 10 runs > 2km
+    const runs = acts.filter(a => isType(a, 'Run') && a.distance > 2000).slice(0, 10);
     if (runs.length) {
-      const avg = runs.slice(0, 5).reduce((s, r) => s + (r.moving_time / r.distance * 1000), 0) / Math.min(runs.length, 5);
-      const m = Math.floor(avg / 60), s = Math.round(avg % 60);
+      const avgGAP = runs.reduce((s, r) => s + gradeAdjustedPaceSec(r.moving_time, r.distance, r.total_elevation_gain || 0), 0) / runs.length;
+      const m = Math.floor(avgGAP / 60), s = Math.round(avgGAP % 60);
       document.getElementById('p-runpace').value = `${m}:${String(s).padStart(2, '0')}`;
+      found.push(`loop (${runs.length} ritten, helling gecorrigeerd)`);
     }
 
-    // Zwem CSS: gemiddelde pace van 5 recentste zwemsets > 200m
-    const swims = acts.filter(a => (a.type === 'Swim' || a.sport_type === 'Swim') && a.distance > 200);
+    // Zwem CSS: recentste 10 zwemsets > 200m
+    const swims = acts.filter(a => isType(a, 'Swim') && a.distance > 200).slice(0, 10);
     if (swims.length) {
-      const avg = swims.slice(0, 5).reduce((s, r) => s + (r.moving_time / r.distance * 100), 0) / Math.min(swims.length, 5);
+      const avg = swims.reduce((s, r) => s + (r.moving_time / r.distance * 100), 0) / swims.length;
       const m = Math.floor(avg / 60), s = Math.round(avg % 60);
       document.getElementById('p-swimcss').value = `${m}:${String(s).padStart(2, '0')}`;
+      found.push(`zwem (${swims.length} sets)`);
     }
 
-    if (!runs.length && !swims.length) {
-      toast('Geen loop of zwem activiteiten gevonden in Strava.', 'error');
+    // FTP-schatting uit fiets: 95% van hoogste gem. vermogen in een rit van 20+ min
+    const bikes = acts.filter(a => (isType(a, 'Ride') || isType(a, 'VirtualRide')) && a.moving_time > 1200 && a.average_watts);
+    if (bikes.length) {
+      const best = Math.max(...bikes.map(b => b.average_watts));
+      const ftp = Math.round(best * 0.95);
+      const ftpInput = document.getElementById('p-ftp');
+      if (ftpInput && ftp > 0) { ftpInput.value = ftp; found.push(`FTP ~${ftp}W`); }
+    }
+
+    // Triathlon splits: zoek triathlon-activiteiten voor zwem/loop pace
+    const tris = acts.filter(a => isType(a, 'Triathlon') || isType(a, 'VirtualTriathlon'));
+    if (tris.length && !swims.length) {
+      // Strava triathlon heeft geen aparte splits via API, maar we loggen het
+      found.push(`${tris.length} triathlon(s) gevonden`);
+    }
+
+    if (!found.length) {
+      toast('Geen activiteiten gevonden in Strava.', 'error');
     } else {
-      toast('Pace geladen van Strava! Klik Opslaan om te bewaren.', 'success');
+      toast(`Geladen: ${found.join(', ')}. Klik Opslaan!`, 'success');
     }
   } catch (e) {
     toast('Strava fout: ' + e.message, 'error');
