@@ -491,11 +491,10 @@ a { color: var(--accent); text-decoration: none; }
         <button class="btn btn-primary btn-sm" onclick="openHealthModal()">+ Invoeren</button>
       </div>
       <div id="health-grid" style="margin-bottom:16px">
-        <div class="health-stat-card"><div class="v" id="g-readiness">—</div><div class="l">Readiness</div></div>
+        <div class="health-stat-card"><div class="v" id="g-vo2max">—</div><div class="l">VO2max</div></div>
         <div class="health-stat-card"><div class="v" id="g-battery">—</div><div class="l">Body Battery</div></div>
         <div class="health-stat-card"><div class="v" id="g-sleep">—</div><div class="l">Slaap (uur)</div></div>
         <div class="health-stat-card"><div class="v" id="g-hrv">—</div><div class="l">HRV</div></div>
-        <div class="health-stat-card"><div class="v" id="g-stress">—</div><div class="l">Stress %</div></div>
         <div class="health-stat-card"><div class="v" id="g-steps">—</div><div class="l">Stappen</div></div>
       </div>
       <div id="health-log-list"></div>
@@ -637,7 +636,7 @@ a { color: var(--accent); text-decoration: none; }
     <h3>Gezondheidsdata invoeren</h3>
     <div class="form-group"><label>Datum</label><input class="form-control" id="hl-date" type="date"></div>
     <div class="form-row">
-      <div class="form-group"><label>Readiness (0-100)</label><input class="form-control" id="hl-readiness" type="number" min="0" max="100"></div>
+      <div class="form-group"><label>VO2max</label><input class="form-control" id="hl-vo2max" type="number" step="0.1"></div>
       <div class="form-group"><label>Body Battery (0-100)</label><input class="form-control" id="hl-battery" type="number" min="0" max="100"></div>
     </div>
     <div class="form-row">
@@ -646,9 +645,8 @@ a { color: var(--accent); text-decoration: none; }
     </div>
     <div class="form-row">
       <div class="form-group"><label>HRV (ms)</label><input class="form-control" id="hl-hrv" type="number"></div>
-      <div class="form-group"><label>Stress % (0-100)</label><input class="form-control" id="hl-stress" type="number" min="0" max="100"></div>
+      <div class="form-group"><label>Stappen</label><input class="form-control" id="hl-steps" type="number"></div>
     </div>
-    <div class="form-group"><label>Stappen</label><input class="form-control" id="hl-steps" type="number"></div>
     <div class="form-group"><label>Notities</label><textarea class="form-control" id="hl-notes" rows="2"></textarea></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('health-modal')">Annuleer</button>
@@ -1367,11 +1365,10 @@ function renderHealthTab() {
   // Most recent entry in stat cards
   const latest = HEALTH[0];
   if (latest) {
-    document.getElementById('g-readiness').textContent = latest.readiness ?? '—';
+    document.getElementById('g-vo2max').textContent    = latest.vo2max != null ? latest.vo2max.toFixed(1) : '—';
     document.getElementById('g-battery').textContent   = latest.body_battery ?? '—';
     document.getElementById('g-sleep').textContent     = latest.sleep_hours ?? '—';
     document.getElementById('g-hrv').textContent       = latest.hrv ?? '—';
-    document.getElementById('g-stress').textContent    = latest.stress_pct != null ? latest.stress_pct + '%' : '—';
     document.getElementById('g-steps').textContent     = latest.steps ? latest.steps.toLocaleString('nl') : '—';
   }
 
@@ -1382,7 +1379,7 @@ function renderHealthTab() {
     <div style="display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:6px">
       <strong style="font-family:var(--font-c);font-size:16px;min-width:90px">${h.date}</strong>
       <span style="font-size:13px;color:var(--t2)">
-        ${h.readiness != null ? `✅ ${h.readiness}` : ''} ${h.body_battery != null ? `🔋 ${h.body_battery}` : ''} ${h.sleep_hours != null ? `😴 ${h.sleep_hours}h` : ''} ${h.hrv != null ? `💓 HRV ${h.hrv}` : ''} ${h.stress_pct != null ? `😰 ${h.stress_pct}%` : ''} ${h.steps != null ? `👟 ${h.steps.toLocaleString('nl')}` : ''}
+        ${h.vo2max != null ? `🫁 VO2 ${h.vo2max.toFixed(1)}` : ''} ${h.body_battery != null ? `🔋 ${h.body_battery}` : ''} ${h.sleep_hours != null ? `😴 ${h.sleep_hours}h` : ''} ${h.hrv != null ? `💓 HRV ${h.hrv}` : ''} ${h.steps != null ? `👟 ${h.steps.toLocaleString('nl')}` : ''}
       </span>
       <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="deleteHealth('${h.id}')">✕</button>
     </div>`).join('');
@@ -1390,12 +1387,11 @@ function renderHealthTab() {
 
 function openHealthModal() {
   document.getElementById('hl-date').value        = new Date().toISOString().slice(0, 10);
-  document.getElementById('hl-readiness').value   = '';
+  document.getElementById('hl-vo2max').value      = '';
   document.getElementById('hl-battery').value     = '';
   document.getElementById('hl-sleep').value       = '';
   document.getElementById('hl-sleep-score').value = '';
   document.getElementById('hl-hrv').value         = '';
-  document.getElementById('hl-stress').value      = '';
   document.getElementById('hl-steps').value       = '';
   document.getElementById('hl-notes').value       = '';
   openModal('health-modal');
@@ -1405,12 +1401,11 @@ async function saveHealth() {
   const data = {
     user_id:     USER.id,
     date:        document.getElementById('hl-date').value,
-    readiness:   parseInt(document.getElementById('hl-readiness').value) || null,
+    vo2max:      parseFloat(document.getElementById('hl-vo2max').value) || null,
     body_battery:parseInt(document.getElementById('hl-battery').value) || null,
     sleep_hours: parseFloat(document.getElementById('hl-sleep').value) || null,
     sleep_score: parseInt(document.getElementById('hl-sleep-score').value) || null,
     hrv:         parseInt(document.getElementById('hl-hrv').value) || null,
-    stress_pct:  parseInt(document.getElementById('hl-stress').value) || null,
     steps:       parseInt(document.getElementById('hl-steps').value) || null,
     notes:       document.getElementById('hl-notes').value.trim() || null,
   };
