@@ -53,19 +53,16 @@ export default async function handler(req, res) {
     const todayDate = new Date();
     const today = todayDate.toISOString().slice(0, 10);
 
-    const [sleepData, stepsData, maxMetricsData] = await Promise.allSettled([
+    const [sleepData, stepsData] = await Promise.allSettled([
       client.getSleepData(todayDate),
       client.getSteps(todayDate),
-      client.getMaxMetrics(todayDate),
     ]);
 
-    const sleep      = sleepData.status      === 'fulfilled' ? sleepData.value      : null;
-    const steps      = stepsData.status      === 'fulfilled' ? stepsData.value      : null;
-    const maxMetrics = maxMetricsData.status === 'fulfilled' ? maxMetricsData.value : null;
+    const sleep  = sleepData.status  === 'fulfilled' ? sleepData.value  : null;
+    const steps  = stepsData.status  === 'fulfilled' ? stepsData.value  : null;
 
     console.log('SLEEP RAW:', JSON.stringify(sleep));
     console.log('STEPS RAW:', JSON.stringify(steps));
-    console.log('MAX METRICS RAW:', JSON.stringify(maxMetrics));
 
     // Slaapdata
     const sleepSec = sleep?.dailySleepDTO?.sleepTimeSeconds
@@ -94,15 +91,10 @@ export default async function handler(req, res) {
       ? bbArray[bbArray.length - 1]?.value ?? null
       : null;
 
-    // VO2max
-    const vo2max = maxMetrics?.generic?.vo2MaxPreciseValue
-                ?? maxMetrics?.[0]?.generic?.vo2MaxPreciseValue
-                ?? null;
-
     const healthLog = {
       user_id:      user.id,
       date:         today,
-      vo2max:       vo2max ? Math.round(vo2max * 10) / 10 : null,
+      vo2max:       null, // manueel invoeren via het formulier
       body_battery: bodyBattery,
       sleep_hours:  sleepSec ? Math.round(sleepSec / 360) / 10 : null,
       sleep_score:  sleepScore,
