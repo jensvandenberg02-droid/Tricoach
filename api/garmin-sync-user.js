@@ -89,14 +89,20 @@ export default async function handler(req, res) {
     // HRV
     const hrv = hr?.lastNight ?? hr?.hrvSummary?.lastNight ?? hr?.hrvValue ?? null;
 
+    // Body battery: laatste waarde uit de slaap array
+    const bbArray = sleep?.sleepBodyBattery;
+    const bodyBattery = Array.isArray(bbArray) && bbArray.length
+      ? bbArray[bbArray.length - 1]?.value ?? null
+      : null;
+
     const healthLog = {
       user_id:      user.id,
       date:         today,
       readiness:    null,
-      body_battery: null,
+      body_battery: bodyBattery,
       sleep_hours:  sleepSec ? Math.round(sleepSec / 360) / 10 : null,
       sleep_score:  sleepScore,
-      hrv:          hrv ? Math.round(hrv) : null,
+      hrv:          sleep?.avgOvernightHrv ?? null,
       stress_pct:   null,
       steps:        totalSteps,
       notes:        'Automatisch gesynchroniseerd via Garmin',
