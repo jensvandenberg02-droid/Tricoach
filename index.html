@@ -571,21 +571,27 @@ a { color: var(--accent); text-decoration: none; }
 .health-icon svg { width:20px; height:20px; }
 .btn-icon svg { width:13px; height:13px; }
 
-/* ── ECG ANIMATION ───────────────────────────────────────── */
+/* ── ECG ANIMATION — single pulse draw & fade ────────────── */
 .ecg-container {
-  overflow: hidden; height: 34px; position: relative;
-  margin: 18px 0 20px;
-  mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.7) 6%, rgba(0,0,0,.7) 94%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,.7) 6%, rgba(0,0,0,.7) 94%, transparent 100%);
+  height: 34px; position: relative; margin: 18px 0 20px;
+  mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
 }
-.ecg-track {
-  display: flex; width: 200%;
-  animation: ecg-scroll 5s linear infinite;
+.ecg-pulse-svg { width: 100%; height: 100%; }
+.ecg-pulse-line {
+  fill: none; stroke: var(--accent); stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 420; stroke-dashoffset: 420;
+  opacity: 0;
+  animation: ecg-single 4s cubic-bezier(.4,0,.2,1) infinite;
 }
-.ecg-tile { width: 50%; flex-shrink: 0; }
-@keyframes ecg-scroll {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
+@keyframes ecg-single {
+  0%   { stroke-dashoffset: 420; opacity: 0; }
+  5%   { stroke-dashoffset: 420; opacity: .55; }
+  42%  { stroke-dashoffset: 0;   opacity: .55; }
+  58%  { stroke-dashoffset: 0;   opacity: .55; }
+  78%  { stroke-dashoffset: 0;   opacity: 0; }
+  100% { stroke-dashoffset: 0;   opacity: 0; }
 }
 
 /* ── CURRENT WEEK PULSE ──────────────────────────────────── */
@@ -697,22 +703,12 @@ a { color: var(--accent); text-decoration: none; }
           <div class="cd-box"><div class="num" id="cd-mins">—</div><div class="lbl">min</div></div>
         </div>
       </div>
-      <!-- ECG separator -->
+      <!-- ECG single-pulse separator -->
       <div class="ecg-container">
-        <div class="ecg-track">
-          <svg class="ecg-tile" viewBox="0 0 600 34" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-            <polyline fill="none" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".45"
-              points="0,17 45,17 56,11 64,23 68,17 72,17 75,0 78,34 81,17 92,17 103,9 113,9 123,17 160,17
-                      200,17 245,17 256,11 264,23 268,17 272,17 275,0 278,34 281,17 292,17 303,9 313,9 323,17 360,17
-                      400,17 445,17 456,11 464,23 468,17 472,17 475,0 478,34 481,17 492,17 503,9 513,9 523,17 600,17"/>
-          </svg>
-          <svg class="ecg-tile" viewBox="0 0 600 34" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-            <polyline fill="none" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".45"
-              points="0,17 45,17 56,11 64,23 68,17 72,17 75,0 78,34 81,17 92,17 103,9 113,9 123,17 160,17
-                      200,17 245,17 256,11 264,23 268,17 272,17 275,0 278,34 281,17 292,17 303,9 313,9 323,17 360,17
-                      400,17 445,17 456,11 464,23 468,17 472,17 475,0 478,34 481,17 492,17 503,9 513,9 523,17 600,17"/>
-          </svg>
-        </div>
+        <svg class="ecg-pulse-svg" viewBox="0 0 300 34" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          <polyline class="ecg-pulse-line"
+            points="0,17 55,17 68,11 80,23 88,17 96,17 100,1 104,33 108,17 118,17 132,8 147,8 162,17 300,17"/>
+        </svg>
       </div>
 
       <div id="hero-stats">
