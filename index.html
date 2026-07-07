@@ -213,6 +213,44 @@ a { color: var(--accent); text-decoration: none; }
 .phase-race    { background: rgba(252,76,2,.2);     color: var(--accent); }
 .phase-recovery{ background: rgba(155,89,182,.15);  color: var(--purple); }
 .week-toggle { color: var(--t3); font-size: 18px; transition: transform .2s; }
+
+/* ── BESCHIKBAARHEID GRID ───────────────────────────────── */
+.avail-day-row { display:flex; align-items:center; gap:8px; }
+.avail-day-label { font-family:var(--font-c); font-size:13px; font-weight:700; width:28px; color:var(--t2); flex-shrink:0; }
+.avail-toggles { display:flex; gap:4px; flex-wrap:wrap; }
+.avail-btn {
+  padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600;
+  border:1px solid var(--border); background:var(--bg3); color:var(--t2);
+  cursor:pointer; transition:all .15s; user-select:none;
+}
+.avail-btn.on { border-color:var(--accent); background:rgba(252,76,2,.15); color:var(--accent); }
+
+/* ── WEEKLIJST CHECKLIST ────────────────────────────────── */
+.week-task-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--r); overflow:hidden; margin-bottom:12px;
+}
+.week-task-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px; background:var(--bg3);
+}
+.week-task-list { padding:10px 14px; display:grid; gap:6px; }
+.week-task-item {
+  display:flex; align-items:center; gap:10px; padding:8px 10px;
+  background:var(--bg2); border-radius:var(--r-sm); cursor:pointer;
+  transition:opacity .15s;
+}
+.week-task-item.done { opacity:.45; text-decoration:line-through; }
+.week-task-item .task-check {
+  width:18px; height:18px; border-radius:4px; border:2px solid var(--border);
+  flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  font-size:11px; transition:all .15s;
+}
+.week-task-item.done .task-check { background:var(--accent); border-color:var(--accent); color:#fff; }
+.week-task-item .task-icon { font-size:16px; }
+.week-task-item .task-body { flex:1; }
+.week-task-item .task-name { font-size:14px; font-weight:600; }
+.week-task-item .task-meta { font-size:12px; color:var(--t2); margin-top:1px; }
 .week-card.open .week-toggle { transform: rotate(180deg); }
 .sessions-grid {
   display: none; padding: 12px 16px;
@@ -450,7 +488,11 @@ a { color: var(--accent); text-decoration: none; }
     <div id="tab-plan" class="tab-pane active">
       <div class="section-header">
         <div class="section-title">Trainingsplan</div>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="display:flex;background:var(--bg3);border-radius:6px;padding:2px;gap:2px">
+            <button id="plan-view-dag" class="btn btn-sm" style="padding:4px 10px;font-size:12px;background:var(--accent);color:#fff" onclick="setPlanView('dag')">📅 Per dag</button>
+            <button id="plan-view-week" class="btn btn-sm" style="padding:4px 10px;font-size:12px" onclick="setPlanView('week')">✅ Weeklijst</button>
+          </div>
           <button class="btn btn-secondary btn-sm" onclick="generateAndRender()">↺ Hergenereer</button>
         </div>
       </div>
@@ -541,6 +583,13 @@ a { color: var(--accent); text-decoration: none; }
             Laden van Strava
           </button>
         </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Wekelijkse beschikbaarheid</div>
+        <p style="font-size:13px;color:var(--t2);margin-bottom:14px">Geef per dag aan welke trainingen mogelijk zijn. Het plan schikt zich hier automatisch naar.</p>
+        <div id="avail-grid" style="display:grid;gap:8px"></div>
+        <button class="btn btn-primary" style="margin-top:12px" onclick="saveAvailability()">Opslaan</button>
       </div>
 
       <div class="card" style="margin-bottom:16px">
@@ -802,10 +851,14 @@ async function loadAll() {
   DONE_SET = new Set((doneRes.data || []).map(r => r.session_key));
   HEALTH   = healthRes.data   || [];
 
+  // Laad beschikbaarheid
+  AVAILABILITY = PROFILE.week_availability || {};
+
   renderProfileTab();
   renderEventsTab();
   renderInjuriesTab();
   renderHealthTab();
+  renderAvailabilityGrid();
   updateAvatar();
 }
 
@@ -1058,6 +1111,9 @@ function generatePlan() {
 
     let sessions = makeSessions(z, phase, evt.type, w + 1);
     sessions = applyInjuries(sessions, INJURIES);
+    if (Object.keys(AVAILABILITY).length) {
+      sessions = scheduleWithAvailability(sessions, AVAILABILITY);
+    }
 
     plan.push({ weekNum: w + 1, weekStart, phase, sessions, events: thisWeekEvents });
   }
@@ -1066,7 +1122,11 @@ function generatePlan() {
 
 function generateAndRender() {
   const plan = generatePlan();
-  renderPlan(plan);
+  if (PLAN_VIEW === 'week') {
+    renderPlanAsChecklist(plan);
+  } else {
+    renderPlan(plan);
+  }
 }
 
 function renderPlan(plan) {
@@ -1674,6 +1734,170 @@ function toast(msg, type = 'success') {
   el.textContent = msg;
   document.getElementById('toast-container').appendChild(el);
   setTimeout(() => el.remove(), 3500);
+}
+
+// ── PLAN VIEW TOGGLE ──────────────────────────────────────────
+let PLAN_VIEW = 'dag'; // 'dag' | 'week'
+
+function setPlanView(v) {
+  PLAN_VIEW = v;
+  document.getElementById('plan-view-dag').style.background  = v === 'dag'  ? 'var(--accent)' : 'transparent';
+  document.getElementById('plan-view-dag').style.color       = v === 'dag'  ? '#fff' : 'var(--t2)';
+  document.getElementById('plan-view-week').style.background = v === 'week' ? 'var(--accent)' : 'transparent';
+  document.getElementById('plan-view-week').style.color      = v === 'week' ? '#fff' : 'var(--t2)';
+  generateAndRender();
+}
+
+// ── BESCHIKBAARHEID ───────────────────────────────────────────
+const AVAIL_DAYS   = ['Ma','Di','Wo','Do','Vr','Za','Zo'];
+const AVAIL_SPORTS = [
+  { k:'swim', label:'🏊 Zwem' },
+  { k:'bike', label:'🚴 Fiets' },
+  { k:'run',  label:'🏃 Loop' },
+  { k:'str',  label:'💪 Kracht' },
+  { k:'rest', label:'😴 Rust' },
+];
+let AVAILABILITY = {}; // { Ma: ['swim','run'], Di: ['bike'], ... }
+
+function renderAvailabilityGrid() {
+  const grid = document.getElementById('avail-grid');
+  if (!grid) return;
+  grid.innerHTML = AVAIL_DAYS.map(day => `
+    <div class="avail-day-row">
+      <div class="avail-day-label">${day}</div>
+      <div class="avail-toggles">
+        ${AVAIL_SPORTS.map(s => {
+          const on = (AVAILABILITY[day] || []).includes(s.k);
+          return `<button class="avail-btn ${on ? 'on' : ''}" onclick="toggleAvail('${day}','${s.k}',this)">${s.label}</button>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function toggleAvail(day, sport, btn) {
+  if (!AVAILABILITY[day]) AVAILABILITY[day] = [];
+  const idx = AVAILABILITY[day].indexOf(sport);
+  if (idx >= 0) { AVAILABILITY[day].splice(idx, 1); btn.classList.remove('on'); }
+  else          { AVAILABILITY[day].push(sport);     btn.classList.add('on'); }
+}
+
+async function saveAvailability() {
+  const { error } = await sb.from('profiles')
+    .update({ week_availability: AVAILABILITY, updated_at: new Date().toISOString() })
+    .eq('id', USER.id);
+  if (error) { toast('Fout: ' + error.message, 'error'); return; }
+  PROFILE.week_availability = AVAILABILITY;
+  generateAndRender();
+  toast('Beschikbaarheid opgeslagen! Plan is bijgewerkt.', 'success');
+}
+
+// ── SESSION SCHEDULING BASED ON AVAILABILITY ──────────────────
+function scheduleWithAvailability(sessions, avail) {
+  if (!avail || !Object.keys(avail).length) return sessions;
+
+  // Separate rest-days from active sessions
+  const active  = sessions.filter(s => s.type !== 'rest');
+  const result  = [];
+  const usedDays = new Set();
+
+  // Sort sessions: long/key first, then by priority
+  const priority = { bike:0, run:1, swim:2, str:3 };
+  active.sort((a, b) => (priority[a.type] ?? 9) - (priority[b.type] ?? 9));
+
+  // For each session, find best available day
+  for (const sess of active) {
+    // Preferred day first (from original schedule), then scan week
+    const candidates = [sess.day, ...AVAIL_DAYS].filter((d, i, arr) => arr.indexOf(d) === i);
+    let placed = false;
+    for (const day of candidates) {
+      const dayAvail = avail[day] || [];
+      const isOpen   = dayAvail.includes(sess.type) || dayAvail.includes('any');
+      if (isOpen && !usedDays.has(day)) {
+        result.push({ ...sess, day });
+        usedDays.add(day);
+        placed = true;
+        break;
+      }
+    }
+    // If no match: allow double-booking on preferred day
+    if (!placed) {
+      result.push({ ...sess, day: sess.day + '?' });
+    }
+  }
+
+  // Fill unused days with rest
+  for (const day of AVAIL_DAYS) {
+    const dayAvail = avail[day] || [];
+    if (!usedDays.has(day) && (dayAvail.includes('rest') || !dayAvail.length)) {
+      result.push({ day, type:'rest', name:'Rust / mobiliteit', meta:'', desc:'' });
+    }
+  }
+
+  result.sort((a, b) => AVAIL_DAYS.indexOf(a.day.replace('?','')) - AVAIL_DAYS.indexOf(b.day.replace('?','')));
+  return result;
+}
+
+// ── WEEKLIJST RENDERER ────────────────────────────────────────
+function renderPlanAsChecklist(plan) {
+  const grid = document.getElementById('plan-grid');
+
+  const ep = getEffectivePaces();
+  let html = ep._calibrated
+    ? `<div style="background:rgba(252,76,2,.08);border:1px solid rgba(252,76,2,.3);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--t2)">
+        📊 Gecalibreerd op race-resultaten
+        ${ep.run_pace ? `· Loop ${ep.run_pace}/km` : ''}
+        ${ep.swim_css ? `· Zwem ${ep.swim_css}/100m` : ''}
+        ${ep.ftp ? `· FTP ~${ep.ftp}W` : ''}
+        &nbsp;<button onclick="updateProfileFromResults()" class="btn btn-ghost btn-sm" style="margin-left:4px">Bewaar in profiel</button>
+      </div>` : '';
+
+  const typeIcon = { swim:'🏊', bike:'🚴', run:'🏃', str:'💪', rest:'😴' };
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+
+  html += plan.map(week => {
+    const wStart = week.weekStart;
+    const wEnd   = new Date(wStart.getTime() + 6 * 86400000);
+    const isCurrent = today >= wStart.toISOString().slice(0,10) && today <= wEnd.toISOString().slice(0,10);
+    const dateLabel  = `${wStart.getDate()} ${monthShort(wStart)} — ${wEnd.getDate()} ${monthShort(wEnd)}`;
+    const phaseLabels = { base:'Base', build:'Build', peak:'Peak', taper:'Taper', race:'Race', recovery:'Herstel' };
+    const activeSessions = week.sessions.filter(s => s.type !== 'rest');
+
+    const sessHtml = activeSessions.map(s => {
+      const key  = `wl_${week.weekNum}_${s.type}_${s.name.replace(/\s+/g,'_')}`;
+      const done = DONE_SET.has(key);
+      return `
+        <div class="week-task-item ${done ? 'done' : ''}" onclick="toggleWeekTask('${key}',this)">
+          <div class="task-check">${done ? '✓' : ''}</div>
+          <div class="task-icon">${typeIcon[s.type] || '🏋️'}</div>
+          <div class="task-body">
+            <div class="task-name">${s.name}</div>
+            ${s.meta ? `<div class="task-meta">${s.meta}</div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="week-task-card ${isCurrent ? 'current-week' : ''}">
+        <div class="week-task-header">
+          <div>
+            <span class="week-label" style="font-family:var(--font-c);font-weight:700">Week ${week.weekNum}</span>
+            <span style="font-size:12px;color:var(--t2);margin-left:8px">${dateLabel}</span>
+          </div>
+          <span class="phase-badge phase-${week.phase}">${phaseLabels[week.phase] || week.phase}</span>
+        </div>
+        ${activeSessions.length ? `<div class="week-task-list">${sessHtml}</div>` : '<div style="padding:10px 14px;font-size:13px;color:var(--t3)">Race of rustweek</div>'}
+      </div>`;
+  }).join('');
+
+  grid.innerHTML = html;
+}
+
+async function toggleWeekTask(key, el) {
+  const done = DONE_SET.has(key);
+  if (done) { DONE_SET.delete(key); el.classList.remove('done'); el.querySelector('.task-check').textContent = ''; }
+  else      { DONE_SET.add(key);    el.classList.add('done');    el.querySelector('.task-check').textContent = '✓'; }
+  await sb.from('done_sessions').upsert({ user_id: USER.id, session_key: key, done: !done }, { onConflict: 'user_id,session_key' });
 }
 
 // ── CALIBRATED PACES FROM RACE RESULTS ───────────────────────
