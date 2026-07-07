@@ -2,12 +2,5 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ],
-  "env": {
-    "STRAVA_CLIENT_ID":        "@strava_client_id",
-    "STRAVA_CLIENT_SECRET":    "@strava_client_secret",
-    "SUPABASE_URL":            "@supabase_url",
-    "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_role_key",
-    "SITE_URL":                "@site_url"
-  }
+  ]
 }
