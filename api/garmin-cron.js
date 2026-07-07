@@ -52,15 +52,13 @@ export default async function handler(req, res) {
 
       // Haal vandaag's data op
       const todayDate = new Date(today);
-      const [sleepData, stepsData, maxMetricsData] = await Promise.allSettled([
+      const [sleepData, stepsData] = await Promise.allSettled([
         client.getSleepData(todayDate),
         client.getSteps(todayDate),
-        client.getMaxMetrics(todayDate),
       ]);
 
-      const sleep      = sleepData.status      === 'fulfilled' ? sleepData.value      : null;
-      const steps      = stepsData.status      === 'fulfilled' ? stepsData.value      : null;
-      const maxMetrics = maxMetricsData.status === 'fulfilled' ? maxMetricsData.value : null;
+      const sleep = sleepData.status === 'fulfilled' ? sleepData.value : null;
+      const steps = stepsData.status === 'fulfilled' ? stepsData.value : null;
 
       // Body battery: laatste waarde uit de slaap array
       const bbArray = sleep?.sleepBodyBattery;
@@ -78,15 +76,10 @@ export default async function handler(req, res) {
         totalSteps = steps.totalSteps;
       }
 
-      // VO2max
-      const vo2max = maxMetrics?.generic?.vo2MaxPreciseValue
-                  ?? maxMetrics?.[0]?.generic?.vo2MaxPreciseValue
-                  ?? null;
-
       const healthLog = {
         user_id:      user.id,
         date:         today,
-        vo2max:       vo2max ? Math.round(vo2max * 10) / 10 : null,
+        vo2max:       null,
         body_battery: bodyBattery,
         sleep_hours:  sleep?.dailySleepDTO?.sleepTimeSeconds
                         ? Math.round(sleep.dailySleepDTO.sleepTimeSeconds / 360) / 10
