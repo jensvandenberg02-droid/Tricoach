@@ -82,9 +82,6 @@ export default async function handler(req, res) {
       totalSteps = steps.totalSteps;
     }
 
-    // HRV
-    const hrv = hr?.lastNight ?? hr?.hrvSummary?.lastNight ?? hr?.hrvValue ?? null;
-
     // Body battery: laatste waarde uit de slaap array
     const bbArray = sleep?.sleepBodyBattery;
     const bodyBattery = Array.isArray(bbArray) && bbArray.length
