@@ -1,0 +1,14 @@
+{
+  "name": "tricoach",
+  "version": "1.0.0",
+  "description": "Multi-user triathlon training dashboard",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.43.4",
+    "garmin-connect": "^1.8.1"
+  },
+  "scripts": {
+    "dev": "vercel dev"
+  }
+}

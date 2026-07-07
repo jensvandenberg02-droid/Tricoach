@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TriCoach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;800;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+/* ── TOKENS ─────────────────────────────────────────────── */
+:root {
+  --bg:       #0d0f14;
+  --bg2:      #13161e;
+  --bg3:      #1a1e2a;
+  --card:     #1e2330;
+  --border:   rgba(255,255,255,.08);
+  --accent:   #fc4c02;
+  --accent2:  #e63900;
+  --blue:     #4c9fff;
+  --green:    #2ecc71;
+  --yellow:   #f1c40f;
+  --red:      #e74c3c;
+  --purple:   #9b59b6;
+  --t1:       #ffffff;
+  --t2:       rgba(255,255,255,.7);
+  --t3:       rgba(255,255,255,.4);
+  --font-c:   'Barlow Condensed', sans-serif;
+  --font:     'Barlow', sans-serif;
+  --r:        12px;
+  --r-sm:     8px;
+  --shadow:   0 4px 24px rgba(0,0,0,.4);
+}
+[data-theme="light"] {
+  --bg:    #f0f2f5;
+  --bg2:   #e4e8ef;
+  --bg3:   #dde2ec;
+  --card:  #ffffff;
+  --border:rgba(0,0,0,.1);
+  --t1:    #0d0f14;
+  --t2:    rgba(0,0,0,.7);
+  --t3:    rgba(0,0,0,.4);
+}
+
+/* ── RESET ──────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--t1); font-family: var(--font); font-size: 15px; min-height: 100vh; }
+button { cursor: pointer; font-family: var(--font); border: none; }
+input, select, textarea { font-family: var(--font); }
+a { color: var(--accent); text-decoration: none; }
+
+/* ── LOGIN SCREEN ───────────────────────────────────────── */
+#login-screen {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 100vh; gap: 24px; padding: 32px;
+  background: radial-gradient(ellipse at 60% 20%, rgba(252,76,2,.15) 0%, transparent 60%),
+              radial-gradient(ellipse at 20% 80%, rgba(76,159,255,.1) 0%, transparent 50%),
+              var(--bg);
+}
+#login-screen .logo { font-family: var(--font-c); font-size: 56px; font-weight: 900; letter-spacing: -1px; }
+#login-screen .logo span { color: var(--accent); }
+#login-screen p { color: var(--t2); font-size: 17px; text-align: center; max-width: 380px; line-height: 1.6; }
+.btn-strava {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--accent); color: #fff;
+  padding: 14px 28px; border-radius: 50px;
+  font-family: var(--font-c); font-size: 20px; font-weight: 700; letter-spacing: .5px;
+  transition: transform .15s, box-shadow .15s;
+  box-shadow: 0 4px 24px rgba(252,76,2,.4);
+}
+.btn-strava:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(252,76,2,.5); }
+.btn-strava svg { width: 28px; height: 28px; fill: #fff; }
+
+/* ── APP SHELL ──────────────────────────────────────────── */
+#app { display: none; }
+
+/* ── TOPBAR ─────────────────────────────────────────────── */
+#topbar {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(13,15,20,.85); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px; height: 56px;
+}
+#topbar .logo { font-family: var(--font-c); font-size: 26px; font-weight: 900; }
+#topbar .logo span { color: var(--accent); }
+#topbar nav { display: flex; gap: 2px; }
+#topbar nav button {
+  background: none; color: var(--t2); padding: 6px 14px;
+  border-radius: var(--r-sm); font-size: 14px; font-weight: 500;
+  transition: background .15s, color .15s;
+}
+#topbar nav button.active, #topbar nav button:hover { background: var(--bg3); color: var(--t1); }
+#topbar nav button.active { color: var(--accent); }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+#avatar-btn {
+  width: 36px; height: 36px; border-radius: 50%; overflow: hidden;
+  background: var(--accent); border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-c); font-weight: 700; font-size: 15px; color: #fff;
+  cursor: pointer; transition: border-color .15s;
+}
+#avatar-btn:hover { border-color: var(--accent); }
+#avatar-btn img { width: 100%; height: 100%; object-fit: cover; }
+.theme-btn {
+  background: var(--bg3); color: var(--t2); border-radius: var(--r-sm);
+  padding: 6px 10px; font-size: 16px; transition: background .15s;
+}
+.theme-btn:hover { background: var(--card); color: var(--t1); }
+
+/* ── HERO ───────────────────────────────────────────────── */
+#hero {
+  position: relative; overflow: hidden;
+  background: linear-gradient(135deg, var(--bg2) 0%, var(--bg) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 40px 24px 32px;
+}
+#hero-flag {
+  position: absolute; right: -20px; top: 50%; transform: translateY(-50%);
+  font-size: 240px; line-height: 1; opacity: .12; pointer-events: none;
+  user-select: none; filter: blur(2px);
+}
+#hero-inner { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; }
+#hero-top { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 28px; }
+#hero-event h2 { font-family: var(--font-c); font-size: 13px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+#hero-event h1 { font-family: var(--font-c); font-size: 42px; font-weight: 900; line-height: 1; margin-bottom: 4px; }
+#hero-event .sub { color: var(--t2); font-size: 15px; }
+#countdown { display: flex; gap: 16px; }
+.cd-box { text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 12px 18px; }
+.cd-box .num { font-family: var(--font-c); font-size: 36px; font-weight: 800; color: var(--accent); line-height: 1; }
+.cd-box .lbl { font-size: 11px; color: var(--t3); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+#hero-stats { display: flex; gap: 20px; flex-wrap: wrap; }
+.hero-stat { }
+.hero-stat .val { font-family: var(--font-c); font-size: 32px; font-weight: 800; line-height: 1; }
+.hero-stat .lbl { font-size: 12px; color: var(--t3); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+.hero-stat .val.accent { color: var(--accent); }
+
+/* ── MAIN CONTENT ───────────────────────────────────────── */
+#main { max-width: 960px; margin: 0 auto; padding: 24px; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* ── CARDS ──────────────────────────────────────────────── */
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 20px;
+  box-shadow: var(--shadow);
+}
+.card-title {
+  font-family: var(--font-c); font-size: 13px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--accent);
+  margin-bottom: 16px;
+}
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.section-title { font-family: var(--font-c); font-size: 20px; font-weight: 700; }
+
+/* ── BUTTONS ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: var(--r-sm);
+  font-size: 14px; font-weight: 600; font-family: var(--font);
+  transition: all .15s; border: 1px solid transparent;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-secondary { background: var(--bg3); color: var(--t1); border-color: var(--border); }
+.btn-secondary:hover { background: var(--card); }
+.btn-ghost { background: none; color: var(--t2); border-color: var(--border); }
+.btn-ghost:hover { background: var(--bg3); color: var(--t1); }
+.btn-danger { background: rgba(231,76,60,.15); color: var(--red); border-color: rgba(231,76,60,.3); }
+.btn-danger:hover { background: rgba(231,76,60,.25); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-garmin { background: #1a9e40; color: #fff; }
+.btn-garmin:hover { background: #168034; }
+
+/* ── FORM ELEMENTS ──────────────────────────────────────── */
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 13px; color: var(--t2); margin-bottom: 5px; font-weight: 500; }
+.form-control {
+  width: 100%; background: var(--bg2); border: 1px solid var(--border);
+  color: var(--t1); border-radius: var(--r-sm); padding: 9px 12px;
+  font-size: 14px; transition: border-color .15s;
+}
+.form-control:focus { outline: none; border-color: var(--accent); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+/* ── PLAN ───────────────────────────────────────────────── */
+#plan-grid { display: grid; gap: 12px; }
+.week-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); overflow: hidden;
+  transition: border-color .2s;
+}
+.week-card:hover { border-color: rgba(252,76,2,.3); }
+.week-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: var(--bg3);
+  cursor: pointer; user-select: none;
+}
+.week-label { font-family: var(--font-c); font-size: 16px; font-weight: 700; }
+.week-phase {
+  font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+  text-transform: uppercase; padding: 3px 8px; border-radius: 4px;
+}
+.phase-base    { background: rgba(76,159,255,.15); color: var(--blue); }
+.phase-build   { background: rgba(46,204,113,.15); color: var(--green); }
+.phase-peak    { background: rgba(241,196,15,.15);  color: var(--yellow); }
+.phase-taper   { background: rgba(231,76,60,.15);   color: var(--red); }
+.phase-race    { background: rgba(252,76,2,.2);     color: var(--accent); }
+.phase-recovery{ background: rgba(155,89,182,.15);  color: var(--purple); }
+.week-toggle { color: var(--t3); font-size: 18px; transition: transform .2s; }
+.week-card.open .week-toggle { transform: rotate(180deg); }
+.sessions-grid {
+  display: none; padding: 12px 16px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;
+}
+.week-card.open .sessions-grid { display: grid; }
+.session-item {
+  background: var(--bg2); border-radius: var(--r-sm);
+  border-left: 3px solid var(--border); padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.session-item.run   { border-color: var(--green); }
+.session-item.bike  { border-color: var(--blue); }
+.session-item.swim  { border-color: #06b6d4; }
+.session-item.str   { border-color: var(--purple); }
+.session-item.rest  { border-color: var(--t3); opacity: .6; }
+.session-day  { font-size: 11px; color: var(--t3); text-transform: uppercase; letter-spacing: 1px; }
+.session-name { font-size: 14px; font-weight: 600; color: var(--t1); }
+.session-meta { font-size: 12px; color: var(--t2); }
+.session-done-cb { font-size: 11px; display: flex; align-items: center; gap: 5px; margin-top: 4px; cursor: pointer; color: var(--t3); }
+.session-done-cb input { cursor: pointer; accent-color: var(--accent); }
+.session-actions { display: flex; gap: 4px; margin-top: 6px; }
+
+/* ── CURRENT WEEK HIGHLIGHT ─────────────────────────────── */
+.week-card.current-week { border-color: rgba(252,76,2,.4); }
+.week-card.current-week .week-header { background: rgba(252,76,2,.08); }
+
+/* ── ACTIVITIES ─────────────────────────────────────────── */
+#activities-list { display: grid; gap: 8px; }
+.activity-row {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 12px 16px;
+}
+.act-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.act-icon.run  { background: rgba(46,204,113,.2); }
+.act-icon.bike { background: rgba(76,159,255,.2); }
+.act-icon.swim { background: rgba(6,182,212,.2); }
+.act-icon.other{ background: var(--bg3); }
+.act-info { flex: 1; }
+.act-name { font-weight: 600; font-size: 15px; }
+.act-meta { font-size: 13px; color: var(--t2); margin-top: 2px; }
+.act-stats { display: flex; gap: 16px; text-align: right; }
+.act-stat .v { font-family: var(--font-c); font-size: 18px; font-weight: 700; }
+.act-stat .l { font-size: 11px; color: var(--t3); }
+
+/* ── EVENTS ─────────────────────────────────────────────── */
+#events-list { display: grid; gap: 8px; margin-bottom: 16px; }
+.event-row {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 12px 16px;
+}
+.event-date-box {
+  text-align: center; background: var(--bg3); border-radius: var(--r-sm);
+  padding: 8px 12px; min-width: 52px;
+}
+.event-date-box .day { font-family: var(--font-c); font-size: 22px; font-weight: 800; line-height: 1; }
+.event-date-box .mon { font-size: 11px; color: var(--t3); text-transform: uppercase; }
+.event-info { flex: 1; }
+.event-name { font-weight: 600; font-size: 15px; }
+.event-sub  { font-size: 13px; color: var(--t2); margin-top: 2px; }
+.event-flag { font-size: 24px; }
+.priority-badge {
+  font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 4px;
+  letter-spacing: 1px;
+}
+.priority-A { background: rgba(252,76,2,.2); color: var(--accent); }
+.priority-B { background: rgba(76,159,255,.15); color: var(--blue); }
+.priority-C { background: var(--bg3); color: var(--t3); }
+
+/* ── INJURIES ───────────────────────────────────────────── */
+#injuries-list { display: grid; gap: 8px; margin-bottom: 16px; }
+.injury-row {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 12px 16px;
+  display: flex; align-items: flex-start; gap: 14px;
+}
+.severity-dot {
+  width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0;
+}
+.sev-mild     { background: var(--yellow); }
+.sev-moderate { background: #e67e22; }
+.sev-severe   { background: var(--red); }
+.injury-info { flex: 1; }
+.injury-name { font-weight: 600; font-size: 15px; }
+.injury-sub  { font-size: 13px; color: var(--t2); margin-top: 2px; }
+
+/* ── HEALTH ─────────────────────────────────────────────── */
+#health-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.health-stat-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 16px; text-align: center;
+}
+.health-stat-card .v { font-family: var(--font-c); font-size: 36px; font-weight: 800; color: var(--t1); }
+.health-stat-card .l { font-size: 12px; color: var(--t3); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+
+/* ── PROFILE ─────────────────────────────────────────────── */
+#profile-avatar-row {
+  display: flex; align-items: center; gap: 16px; margin-bottom: 24px;
+}
+#profile-avatar-large {
+  width: 64px; height: 64px; border-radius: 50%; background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-c); font-size: 28px; font-weight: 700; color: #fff; overflow: hidden;
+}
+#profile-avatar-large img { width: 100%; height: 100%; object-fit: cover; }
+.strava-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(252,76,2,.15); color: var(--accent);
+  border: 1px solid rgba(252,76,2,.3); border-radius: 50px;
+  padding: 4px 10px; font-size: 12px; font-weight: 600;
+}
+
+/* ── MODAL ───────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; display: none;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 24px; width: 100%; max-width: 520px;
+  max-height: 90vh; overflow-y: auto;
+  box-shadow: 0 24px 80px rgba(0,0,0,.6);
+}
+.modal h3 { font-family: var(--font-c); font-size: 22px; font-weight: 800; margin-bottom: 20px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+/* ── TOAST ───────────────────────────────────────────────── */
+#toast-container {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.toast {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 12px 18px;
+  font-size: 14px; box-shadow: var(--shadow);
+  animation: slide-in .2s ease;
+}
+.toast.success { border-color: rgba(46,204,113,.4); color: var(--green); }
+.toast.error   { border-color: rgba(231,76,60,.4);  color: var(--red); }
+@keyframes slide-in { from { transform: translateX(40px); opacity: 0; } }
+
+/* ── EMPTY STATE ─────────────────────────────────────────── */
+.empty { text-align: center; padding: 40px; color: var(--t3); font-size: 15px; }
+.empty .ico { font-size: 40px; margin-bottom: 12px; }
+
+/* ── LOADING ─────────────────────────────────────────────── */
+.spinner {
+  display: inline-block; width: 20px; height: 20px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin .6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── RESPONSIVE ──────────────────────────────────────────── */
+@media (max-width: 640px) {
+  #topbar nav button { padding: 6px 8px; font-size: 12px; }
+  #countdown { flex-wrap: wrap; gap: 8px; }
+  .form-row, .form-row-3 { grid-template-columns: 1fr; }
+  #health-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN SCREEN ──────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="logo">Tri<span>Coach</span></div>
+  <p>Jouw persoonlijk triathlon dashboard. Koppel je Strava account en stel je wedstrijdkalender in — TriCoach genereert automatisch een trainingsplan op maat.</p>
+  <button class="btn-strava" onclick="loginWithStrava()">
+    <svg viewBox="0 0 24 24"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+    Inloggen met Strava
+  </button>
+  <p style="font-size:13px; color:var(--t3)">Geen account nodig — je Strava profiel is je login.</p>
+</div>
+
+<!-- ── MAIN APP ───────────────────────────────────────────── -->
+<div id="app">
+
+  <!-- Topbar -->
+  <header id="topbar">
+    <div class="logo">Tri<span>Coach</span></div>
+    <nav>
+      <button class="active" onclick="switchTab('plan')">Plan</button>
+      <button onclick="switchTab('activities')">Activiteiten</button>
+      <button onclick="switchTab('events')">Events</button>
+      <button onclick="switchTab('injuries')">Blessures</button>
+      <button onclick="switchTab('health')">Gezondheid</button>
+      <button onclick="switchTab('profile')">Profiel</button>
+    </nav>
+    <div class="topbar-right">
+      <button class="theme-btn" onclick="toggleTheme()">☀️</button>
+      <div id="avatar-btn" onclick="switchTab('profile')" title="Profiel"></div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section id="hero">
+    <div id="hero-flag">🏁</div>
+    <div id="hero-inner">
+      <div id="hero-top">
+        <div id="hero-event">
+          <h2>Volgend event</h2>
+          <h1 id="hero-event-name">Geen event</h1>
+          <div class="sub" id="hero-event-sub"></div>
+        </div>
+        <div id="countdown">
+          <div class="cd-box"><div class="num" id="cd-days">—</div><div class="lbl">dagen</div></div>
+          <div class="cd-box"><div class="num" id="cd-hours">—</div><div class="lbl">uren</div></div>
+          <div class="cd-box"><div class="num" id="cd-mins">—</div><div class="lbl">min</div></div>
+        </div>
+      </div>
+      <div id="hero-stats">
+        <div class="hero-stat"><div class="val accent" id="hero-ftp">—</div><div class="lbl">FTP (W)</div></div>
+        <div class="hero-stat"><div class="val" id="hero-wkg">—</div><div class="lbl">W/kg</div></div>
+        <div class="hero-stat"><div class="val" id="hero-swim">—</div><div class="lbl">Zwem CSS /100m</div></div>
+        <div class="hero-stat"><div class="val" id="hero-run">—</div><div class="lbl">Loop /km</div></div>
+        <div class="hero-stat"><div class="val" id="hero-vo2">—</div><div class="lbl">VO₂max</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main tabs -->
+  <main id="main">
+
+    <!-- PLAN TAB -->
+    <div id="tab-plan" class="tab-pane active">
+      <div class="section-header">
+        <div class="section-title">Trainingsplan</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="generateAndRender()">↺ Hergenereer</button>
+        </div>
+      </div>
+      <div id="plan-grid"><div class="empty"><div class="ico">🗓️</div>Voeg events toe om een plan te genereren.</div></div>
+    </div>
+
+    <!-- ACTIVITIES TAB -->
+    <div id="tab-activities" class="tab-pane">
+      <div class="section-header">
+        <div class="section-title">Strava Activiteiten</div>
+        <button class="btn btn-secondary btn-sm" onclick="syncStrava(this)">↺ Sync Strava</button>
+      </div>
+      <div id="activities-list"><div class="empty"><div class="ico">🏃</div>Klik op "Sync Strava" om activiteiten te laden.</div></div>
+    </div>
+
+    <!-- EVENTS TAB -->
+    <div id="tab-events" class="tab-pane">
+      <div class="section-header">
+        <div class="section-title">Wedstrijdkalender</div>
+        <button class="btn btn-primary btn-sm" onclick="openEventModal()">+ Event</button>
+      </div>
+      <div id="events-list"></div>
+    </div>
+
+    <!-- INJURIES TAB -->
+    <div id="tab-injuries" class="tab-pane">
+      <div class="section-header">
+        <div class="section-title">Blessures</div>
+        <button class="btn btn-primary btn-sm" onclick="openInjuryModal()">+ Blessure</button>
+      </div>
+      <div id="injuries-list"></div>
+    </div>
+
+    <!-- HEALTH TAB -->
+    <div id="tab-health" class="tab-pane">
+      <div class="section-header">
+        <div class="section-title">Gezondheidsdata</div>
+        <button class="btn btn-primary btn-sm" onclick="openHealthModal()">+ Invoeren</button>
+      </div>
+      <div id="health-grid" style="margin-bottom:16px">
+        <div class="health-stat-card"><div class="v" id="g-readiness">—</div><div class="l">Readiness</div></div>
+        <div class="health-stat-card"><div class="v" id="g-battery">—</div><div class="l">Body Battery</div></div>
+        <div class="health-stat-card"><div class="v" id="g-sleep">—</div><div class="l">Slaap (uur)</div></div>
+        <div class="health-stat-card"><div class="v" id="g-hrv">—</div><div class="l">HRV</div></div>
+        <div class="health-stat-card"><div class="v" id="g-stress">—</div><div class="l">Stress %</div></div>
+        <div class="health-stat-card"><div class="v" id="g-steps">—</div><div class="l">Stappen</div></div>
+      </div>
+      <div id="health-log-list"></div>
+    </div>
+
+    <!-- PROFILE TAB -->
+    <div id="tab-profile" class="tab-pane">
+      <div id="profile-avatar-row">
+        <div id="profile-avatar-large"></div>
+        <div>
+          <div style="font-family:var(--font-c);font-size:24px;font-weight:800" id="profile-name">—</div>
+          <div class="strava-badge" style="margin-top:6px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+            Strava verbonden
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Fitnesswaarden</div>
+        <div class="form-row">
+          <div class="form-group"><label>FTP (Watt)</label><input class="form-control" id="p-ftp" type="number" placeholder="200"></div>
+          <div class="form-group"><label>Gewicht (kg)</label><input class="form-control" id="p-weight" type="number" placeholder="70"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Max HR</label><input class="form-control" id="p-mhr" type="number" placeholder="190"></div>
+          <div class="form-group"><label>Rust HR</label><input class="form-control" id="p-rhr" type="number" placeholder="50"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>VO₂max</label><input class="form-control" id="p-vo2" type="number" placeholder="50"></div>
+          <div class="form-group"><label>Loop pace (min:sec/km)</label><input class="form-control" id="p-runpace" placeholder="5:30"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Zwem CSS (/100m)</label><input class="form-control" id="p-swimcss" placeholder="1:40"></div>
+          <div class="form-group"><label>Fietskadens (rpm)</label><input class="form-control" id="p-bikcad" type="number" placeholder="85"></div>
+        </div>
+        <button class="btn btn-primary" onclick="saveProfile()">Opslaan</button>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Garmin Connect</div>
+        <p style="font-size:13px;color:var(--t2);margin-bottom:14px">Vul je Garmin inloggegevens in om workouts te pushen. Deze worden veilig opgeslagen.</p>
+        <div class="form-group"><label>Garmin e-mail</label><input class="form-control" id="p-garmin-email" type="email" placeholder="jou@email.com"></div>
+        <div class="form-group"><label>Garmin wachtwoord</label><input class="form-control" id="p-garmin-pw" type="password" placeholder="••••••••"></div>
+        <button class="btn btn-garmin" onclick="saveGarmin()">Garmin koppelen</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Account</div>
+        <button class="btn btn-ghost" onclick="signOut()">Uitloggen</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── MODALS ─────────────────────────────────────────────── -->
+
+<!-- Event Modal -->
+<div class="modal-overlay" id="event-modal">
+  <div class="modal">
+    <h3 id="event-modal-title">Nieuw event</h3>
+    <input type="hidden" id="event-id">
+    <div class="form-group"><label>Naam</label><input class="form-control" id="ev-name" placeholder="Ironman 70.3 Knokke"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Datum</label><input class="form-control" id="ev-date" type="date"></div>
+      <div class="form-group"><label>Prioriteit</label>
+        <select class="form-control" id="ev-priority">
+          <option value="A">A — Hoofddoel</option>
+          <option value="B">B — Tussendoel</option>
+          <option value="C">C — Trainingswedstrijd</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Type</label>
+      <select class="form-control" id="ev-type">
+        <option value="HIM">Half Ironman</option>
+        <option value="IM">Full Ironman</option>
+        <option value="olympic-tri">Olympic Triathlon</option>
+        <option value="sprint-tri">Sprint Triathlon</option>
+        <option value="5K">5 km loop</option>
+        <option value="10K">10 km loop</option>
+        <option value="HM">Halve marathon</option>
+        <option value="marathon">Marathon</option>
+        <option value="bike-race">Fietskoers</option>
+        <option value="swim-race">Zwemwedstrijd</option>
+        <option value="duathlon">Duathlon</option>
+        <option value="other">Overige</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Land</label><input class="form-control" id="ev-country" placeholder="België"></div>
+      <div class="form-group"><label>Stad</label><input class="form-control" id="ev-city" placeholder="Knokke-Heist"></div>
+    </div>
+    <div class="form-row-3">
+      <div class="form-group"><label>Zwem (km)</label><input class="form-control" id="ev-swim" type="number" step="0.1" placeholder="1.9"></div>
+      <div class="form-group"><label>Fiets (km)</label><input class="form-control" id="ev-bike" type="number" step="0.1" placeholder="90"></div>
+      <div class="form-group"><label>Loop (km)</label><input class="form-control" id="ev-run" type="number" step="0.1" placeholder="21.1"></div>
+    </div>
+    <div class="form-group"><label>Notities</label><textarea class="form-control" id="ev-notes" rows="2"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('event-modal')">Annuleer</button>
+      <button class="btn btn-primary" onclick="saveEvent()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Injury Modal -->
+<div class="modal-overlay" id="injury-modal">
+  <div class="modal">
+    <h3 id="injury-modal-title">Blessure melden</h3>
+    <input type="hidden" id="inj-id">
+    <div class="form-group"><label>Naam / beschrijving</label><input class="form-control" id="inj-name" placeholder="ITB syndroom links"></div>
+    <div class="form-group"><label>Lichaamsdelen</label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px" id="bodyparts-grid"></div>
+    </div>
+    <div class="form-group"><label>Ernst</label>
+      <select class="form-control" id="inj-severity">
+        <option value="mild">Licht — volume verlagen</option>
+        <option value="moderate">Matig — alternatieve training</option>
+        <option value="severe">Ernstig — volledig rust</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Startdatum</label><input class="form-control" id="inj-start" type="date"></div>
+      <div class="form-group"><label>Einddatum (leeg = lopend)</label><input class="form-control" id="inj-end" type="date"></div>
+    </div>
+    <div class="form-group"><label>Notities</label><textarea class="form-control" id="inj-notes" rows="2"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('injury-modal')">Annuleer</button>
+      <button class="btn btn-primary" onclick="saveInjury()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Health Modal -->
+<div class="modal-overlay" id="health-modal">
+  <div class="modal">
+    <h3>Gezondheidsdata invoeren</h3>
+    <div class="form-group"><label>Datum</label><input class="form-control" id="hl-date" type="date"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Readiness (0-100)</label><input class="form-control" id="hl-readiness" type="number" min="0" max="100"></div>
+      <div class="form-group"><label>Body Battery (0-100)</label><input class="form-control" id="hl-battery" type="number" min="0" max="100"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Slaap (uur)</label><input class="form-control" id="hl-sleep" type="number" step="0.1"></div>
+      <div class="form-group"><label>Slaapscore (0-100)</label><input class="form-control" id="hl-sleep-score" type="number" min="0" max="100"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>HRV (ms)</label><input class="form-control" id="hl-hrv" type="number"></div>
+      <div class="form-group"><label>Stress % (0-100)</label><input class="form-control" id="hl-stress" type="number" min="0" max="100"></div>
+    </div>
+    <div class="form-group"><label>Stappen</label><input class="form-control" id="hl-steps" type="number"></div>
+    <div class="form-group"><label>Notities</label><textarea class="form-control" id="hl-notes" rows="2"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('health-modal')">Annuleer</button>
+      <button class="btn btn-primary" onclick="saveHealth()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script>
+// ── SUPABASE INIT ────────────────────────────────────────────
+// Vervang deze waarden met je eigen Supabase project URL en anon key
+const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
+const STRAVA_CLIENT_ID = 'YOUR_STRAVA_CLIENT_ID';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── STATE ──────────────────────────────────────────────────────
+let USER     = null;
+let PROFILE  = null;
+let EVENTS   = [];
+let INJURIES = [];
+let DONE_SET = new Set();
+let HEALTH   = [];
+let ACTIVITIES = [];
+let ACCESS_TOKEN = null;
+
+// ── BOOT ──────────────────────────────────────────────────────
+(async () => {
+  // Check voor actieve sessie
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    USER = session.user;
+    ACCESS_TOKEN = session.access_token;
+    await bootApp();
+  } else {
+    showLogin();
+  }
+
+  // Auth state listener
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      USER = session.user;
+      ACCESS_TOKEN = session.access_token;
+      await bootApp();
+    } else if (event === 'SIGNED_OUT') {
+      USER = null; PROFILE = null;
+      showLogin();
+    }
+  });
+})();
+
+async function bootApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  await loadAll();
+  updateHero();
+  generateAndRender();
+  updateCountdown();
+  setInterval(updateCountdown, 60000);
+}
+
+function showLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+// ── AUTH ──────────────────────────────────────────────────────
+function loginWithStrava() {
+  const redirectUri = encodeURIComponent(window.location.origin + '/api/strava-callback');
+  const scope = 'read,activity:read_all';
+  window.location.href =
+    `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${redirectUri}&scope=${scope}&approval_prompt=auto`;
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+}
+
+// ── LOAD ALL DATA ─────────────────────────────────────────────
+async function loadAll() {
+  const [profileRes, eventsRes, injuriesRes, doneRes, healthRes] = await Promise.all([
+    sb.from('profiles').select('*').eq('id', USER.id).single(),
+    sb.from('events').select('*').eq('user_id', USER.id).order('date'),
+    sb.from('injuries').select('*').eq('user_id', USER.id).order('start_date', { ascending: false }),
+    sb.from('session_done').select('session_key').eq('user_id', USER.id),
+    sb.from('health_logs').select('*').eq('user_id', USER.id).order('date', { ascending: false }).limit(30),
+  ]);
+
+  PROFILE  = profileRes.data  || {};
+  EVENTS   = eventsRes.data   || [];
+  INJURIES = injuriesRes.data || [];
+  DONE_SET = new Set((doneRes.data || []).map(r => r.session_key));
+  HEALTH   = healthRes.data   || [];
+
+  renderProfileTab();
+  renderEventsTab();
+  renderInjuriesTab();
+  renderHealthTab();
+  updateAvatar();
+}
+
+// ── HERO ──────────────────────────────────────────────────────
+const COUNTRY_FLAGS = {
+  'belgie':        '🇧🇪', 'belgië':       '🇧🇪',
+  'nederland':     '🇳🇱', 'duitsland':    '🇩🇪',
+  'frankrijk':     '🇫🇷', 'spanje':       '🇪🇸',
+  'italie':        '🇮🇹', 'italië':       '🇮🇹',
+  'portugal':      '🇵🇹', 'noorwegen':    '🇳🇴',
+  'zweden':        '🇸🇪', 'denemarken':   '🇩🇰',
+  'zwitserland':   '🇨🇭', 'oostenrijk':   '🇦🇹',
+  'uk':            '🇬🇧', 'verenigd koninkrijk': '🇬🇧',
+  'usa':           '🇺🇸', 'verenigde staten': '🇺🇸',
+  'hawaii':        '🇺🇸', 'australia':    '🇦🇺',
+  'australie':     '🇦🇺', 'australië':    '🇦🇺',
+  'canada':        '🇨🇦', 'japan':        '🇯🇵',
+  'mexico':        '🇲🇽', 'brazilie':     '🇧🇷',
+  'brazilië':      '🇧🇷', 'china':        '🇨🇳',
+  'south africa':  '🇿🇦', 'kroatie':      '🇭🇷',
+  'kroatië':       '🇭🇷', 'griekenland':  '🇬🇷',
+  'tsjechie':      '🇨🇿', 'tsjechië':     '🇨🇿',
+  'hongarije':     '🇭🇺', 'poland':       '🇵🇱',
+  'polen':         '🇵🇱', 'finland':      '🇫🇮',
+};
+
+function getFlag(country) {
+  if (!country) return '🏁';
+  const k = country.toLowerCase().trim();
+  return COUNTRY_FLAGS[k] || '🏁';
+}
+
+function updateHero() {
+  const p = PROFILE || {};
+  document.getElementById('hero-ftp').textContent = p.ftp || '—';
+  document.getElementById('hero-wkg').textContent  = (p.ftp && p.weight_kg) ? (p.ftp / p.weight_kg).toFixed(2) : '—';
+  document.getElementById('hero-swim').textContent = p.swim_css || '—';
+  document.getElementById('hero-run').textContent  = p.run_pace || '—';
+  document.getElementById('hero-vo2').textContent  = p.vo2max  || '—';
+
+  const now  = new Date();
+  const next = EVENTS.filter(e => new Date(e.date) >= now).sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+
+  if (next) {
+    document.getElementById('hero-event-name').textContent = next.name;
+    document.getElementById('hero-event-sub').textContent  =
+      `${eventTypeLabel(next.type)} · ${next.city || ''} ${next.country || ''}`.trim().replace(/^·\s*/, '');
+    document.getElementById('hero-flag').textContent = getFlag(next.country);
+  } else {
+    document.getElementById('hero-event-name').textContent = 'Geen event gepland';
+    document.getElementById('hero-event-sub').textContent  = 'Voeg een event toe via het Events-tabblad';
+    document.getElementById('hero-flag').textContent = '🏁';
+  }
+}
+
+function updateCountdown() {
+  const now  = new Date();
+  const next = EVENTS.filter(e => new Date(e.date) >= now).sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+  if (!next) { ['cd-days','cd-hours','cd-mins'].forEach(id => document.getElementById(id).textContent = '—'); return; }
+  const diff = new Date(next.date) - now;
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  document.getElementById('cd-days').textContent  = d;
+  document.getElementById('cd-hours').textContent = h;
+  document.getElementById('cd-mins').textContent  = m;
+}
+
+// ── TRAINING PLAN ─────────────────────────────────────────────
+function calcZones(p) {
+  const ftp     = p?.ftp || 200;
+  const pace    = paceToSec(p?.run_pace || '5:30');
+  const swimCss = paceToSec(p?.swim_css || '1:40');
+  return {
+    ftp,
+    z1: Math.round(ftp * .55), z2: Math.round(ftp * .75),
+    z3: Math.round(ftp * .87), z4: Math.round(ftp * .95),
+    z5: Math.round(ftp * 1.05),
+    runEasy:   secToPace(pace * 1.2),
+    runTempo:  secToPace(pace * 1.05),
+    runFast:   secToPace(pace * .95),
+    swimEasy:  secToPace(swimCss * 1.1),
+    swimTempo: secToPace(swimCss),
+  };
+}
+
+function paceToSec(s) {
+  if (!s || typeof s !== 'string') return 300;
+  const [m, sec] = s.split(':').map(Number);
+  return (m || 0) * 60 + (sec || 0);
+}
+function secToPace(s) {
+  const sec = Math.round(s);
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+
+function eventTypeLabel(type) {
+  const map = { 'HIM':'Half Ironman','IM':'Full Ironman','olympic-tri':'Olympic Triathlon','sprint-tri':'Sprint Triathlon','5K':'5 km','10K':'10 km','HM':'Halve marathon','marathon':'Marathon','bike-race':'Fietskoers','swim-race':'Zwemwedstrijd','duathlon':'Duathlon','other':'Event' };
+  return map[type] || type;
+}
+
+function makeSessions(z, phase, type, weekNum) {
+  const isTri = ['HIM','IM','olympic-tri','sprint-tri'].includes(type);
+  const isDu  = type === 'duathlon';
+  const isRun = ['5K','10K','HM','marathon'].includes(type);
+  const isBike = type === 'bike-race';
+  const isSwim = type === 'swim-race';
+
+  const sessions = [];
+  const days = ['Ma','Di','Wo','Do','Vr','Za','Zo'];
+
+  if (phase === 'recovery') {
+    return [
+      { day:'Di', type:'run',  name:'Herstelloop',        meta:'30 min Z1', desc:'Licht herstel, hartslag laag houden' },
+      { day:'Do', type:'bike', name:'Losse toer',         meta:'45 min Z1', desc:'Benen uitdraaien na wedstrijd' },
+      { day:'Za', type:'swim', name:'Zwem herstel',       meta:'1500m easy', desc:'Techniek focus, geen druk' },
+    ];
+  }
+
+  if (phase === 'taper') {
+    const s = [
+      { day:'Ma', type:'rest', name:'Rust',               meta:'', desc:'' },
+      { day:'Di', type:'run',  name:'Activatie loop',     meta:'20 min + 4×100m strides', desc:'Benen wakker houden' },
+      { day:'Wo', type:'bike', name:'Korte activatie',    meta:'40 min, laatste 10 min Z3', desc:'Scherp blijven' },
+      { day:'Do', type:'swim', name:'Race-pace zwem',     meta:'1200m met race-pace segmenten', desc:'Vertrouwen opbouwen' },
+      { day:'Vr', type:'rest', name:'Rust',               meta:'', desc:'Poten omhoog' },
+      { day:'Za', type:'run',  name:'Korte activatie',    meta:'15 min Z2 + strides', desc:'' },
+      { day:'Zo', type:'rest', name:'Race dag!',          meta:'', desc:'💪 Geniet ervan' },
+    ];
+    return isTri ? s : s.filter(x => x.type !== 'swim');
+  }
+
+  // Base / Build / Peak templates
+  if (isTri || isDu) {
+    sessions.push({ day:'Ma', type:'rest', name:'Rust / mobiliteit',   meta:'', desc:'' });
+    sessions.push({ day:'Di', type:'run',  name: phase==='peak' ? 'Interval loop' : 'Tempoloop', meta: phase==='peak' ? `6×800m @ ${z.runFast}/km` : `6 km @ ${z.runTempo}/km`, desc:'Aerobe capaciteit' });
+    if (!isDu) sessions.push({ day:'Di', type:'swim', name:'Techniekzwem', meta:'2000m drill + pull', desc:'Arm positie en rotatie', offset:true });
+    sessions.push({ day:'Wo', type:'bike', name: phase==='peak' ? 'Sweetspot blokken' : 'Endurance rit', meta: phase==='peak' ? `3×15 min @ ${z.z4}W` : `75 min @ ${z.z2}W`, desc:'Basisuithoudingsvermogen' });
+    sessions.push({ day:'Do', type:'run',  name:'Duurloop',            meta: phase==='base' ? '45 min Z2' : '55 min Z2', desc:'Aerobe basis' });
+    if (!isDu) sessions.push({ day:'Do', type:'swim', name:'Drempel zwem', meta:`3×400m @ ${z.swimTempo}/100m`, desc:'Melkzuurdrempel', offset:true });
+    sessions.push({ day:'Vr', type:'str',  name:'Kracht + core',       meta:'30 min', desc:'Squat, deadlift, plank' });
+    sessions.push({ day:'Za', type:'bike', name:'Lange rit',            meta: phase==='peak' ? `${weekNum > 10 ? 4 : 3} uur endurance` : `${weekNum > 8 ? 3 : 2}h Z2`, desc:'Vetverbranding + duurvermogen' });
+    sessions.push({ day:'Zo', type:'run',  name:'Lange duurloop',      meta: phase==='base' ? '60 min Z2' : phase==='build' ? '75 min Z2' : '90 min Z2', desc:'Aerobe basis opbouwen' });
+  } else if (isRun) {
+    sessions.push({ day:'Ma', type:'rest', name:'Rust',                meta:'', desc:'' });
+    sessions.push({ day:'Di', type:'run',  name:'Interval',            meta:`8×400m @ ${z.runFast}/km`, desc:'VO₂max boost' });
+    sessions.push({ day:'Wo', type:'bike', name:'Herstelrit',          meta:'45 min Z1-Z2', desc:'Actief herstel' });
+    sessions.push({ day:'Do', type:'run',  name:'Tempoloop',           meta:`5 km @ ${z.runTempo}/km`, desc:'' });
+    sessions.push({ day:'Vr', type:'str',  name:'Kracht',              meta:'30 min', desc:'Functionele loopkracht' });
+    sessions.push({ day:'Za', type:'run',  name:'Lange duurloop',      meta: type==='marathon' ? '28-32 km Z2' : type==='HM' ? '18-22 km Z2' : '12 km Z2', desc:'Basiswerk' });
+    sessions.push({ day:'Zo', type:'run',  name:'Herstelloop',         meta:`40 min @ ${z.runEasy}/km`, desc:'' });
+  } else if (isBike) {
+    sessions.push({ day:'Ma', type:'rest', name:'Rust',                meta:'', desc:'' });
+    sessions.push({ day:'Di', type:'bike', name:'Interval',            meta:`5×5 min @ ${z.z5}W`, desc:'VO₂max' });
+    sessions.push({ day:'Wo', type:'run',  name:'Herstelloop',         meta:'35 min Z1', desc:'' });
+    sessions.push({ day:'Do', type:'bike', name:'Sweetspot',           meta:`2×20 min @ ${z.z4}W`, desc:'' });
+    sessions.push({ day:'Vr', type:'str',  name:'Kracht / core',       meta:'25 min', desc:'' });
+    sessions.push({ day:'Za', type:'bike', name:'Lange rit',           meta:'3-4 uur Z2', desc:'Vetverbranding' });
+    sessions.push({ day:'Zo', type:'bike', name:'Z2 duurrit',          meta:'2 uur Z2', desc:'' });
+  } else if (isSwim) {
+    sessions.push({ day:'Ma', type:'rest', name:'Rust',                meta:'', desc:'' });
+    sessions.push({ day:'Di', type:'swim', name:'Interval',            meta:`10×100m @ ${z.swimTempo}/100m`, desc:'Drempeltraining' });
+    sessions.push({ day:'Wo', type:'bike', name:'Herstelrit',          meta:'40 min Z1', desc:'' });
+    sessions.push({ day:'Do', type:'swim', name:'Lange duurzwem',      meta:'3000m endurance', desc:'Aëroob volume' });
+    sessions.push({ day:'Vr', type:'str',  name:'Core + schouderkracht', meta:'30 min', desc:'' });
+    sessions.push({ day:'Za', type:'swim', name:'Snelheidstraining',   meta:`6×50m sprint + 4×200m @ ${z.swimEasy}/100m`, desc:'' });
+    sessions.push({ day:'Zo', type:'run',  name:'Herstelloop',         meta:'30 min Z1', desc:'' });
+  }
+
+  return sessions;
+}
+
+function applyInjuries(sessions, injuries) {
+  const now = new Date().toISOString().slice(0, 10);
+  const active = injuries.filter(inj =>
+    inj.start_date <= now && (!inj.end_date || inj.end_date >= now)
+  );
+  return sessions.map(s => {
+    let modified = { ...s };
+    for (const inj of active) {
+      const parts  = inj.body_parts || [];
+      const runInjured  = parts.some(p => ['knee','ankle','hip','itband','achilles','calf','hamstring'].includes(p));
+      const swimInjured = parts.some(p => ['shoulder'].includes(p));
+      const anyInjured  = parts.length > 0;
+
+      if (inj.severity === 'severe' && anyInjured) {
+        modified = { ...s, type: 'rest', name: `[RUST] ${s.name}`, meta: `Blessure: ${inj.name}`, desc: 'Herstel prioriteit' };
+      } else if (inj.severity === 'moderate') {
+        if (s.type === 'run' && runInjured) {
+          modified = { ...s, type: 'bike', name: `[AANGEPAST] ${s.name}`, meta: `Fiets i.p.v. lopen — ${inj.name}`, desc: 'Alternatieve training' };
+        } else if (s.type === 'swim' && swimInjured) {
+          modified = { ...s, type: 'bike', name: `[AANGEPAST] ${s.name}`, meta: `Fiets i.p.v. zwemmen — ${inj.name}`, desc: 'Alternatieve training' };
+        }
+      } else if (inj.severity === 'mild') {
+        if ((s.type === 'run' && runInjured) || (s.type === 'swim' && swimInjured)) {
+          modified = { ...s, name: `${s.name} ⚠️`, meta: `${s.meta} (volume -30%)`, desc: `Lichte blessure: ${inj.name}` };
+        }
+      }
+    }
+    return modified;
+  });
+}
+
+function generatePlan() {
+  const now    = new Date();
+  const z      = calcZones(PROFILE);
+  const future = EVENTS.filter(e => new Date(e.date) >= now)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (!future.length) return [];
+
+  const target  = new Date(future[0].date);
+  const msPerWk = 7 * 24 * 3600000;
+  const weeksOut= Math.ceil((target - now) / msPerWk);
+  const maxWeeks= Math.min(weeksOut + 2, 52);
+
+  const plan = [];
+  for (let w = 0; w < maxWeeks; w++) {
+    const weekStart = new Date(now.getTime() + w * msPerWk);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Monday
+
+    // Find events this week or within range
+    const thisWeekEvents = EVENTS.filter(e => {
+      const d = new Date(e.date);
+      return d >= weekStart && d < new Date(weekStart.getTime() + msPerWk);
+    });
+
+    const weeksToTarget = Math.ceil((target - weekStart) / msPerWk);
+
+    // Phase determination
+    let phase = 'base';
+    const evt = future[0];
+    if (thisWeekEvents.some(e => e.id === evt.id)) {
+      phase = 'race';
+    } else if (w > 0 && EVENTS.some(e => {
+      const d = new Date(e.date);
+      const prev = new Date(weekStart.getTime() - msPerWk);
+      return d >= prev && d < weekStart;
+    })) {
+      phase = 'recovery';
+    } else if (weeksToTarget <= 1) {
+      phase = 'taper';
+    } else if (weeksToTarget <= 3) {
+      phase = 'peak';
+    } else if (weeksToTarget <= 8) {
+      phase = 'build';
+    }
+
+    let sessions = makeSessions(z, phase, evt.type, w + 1);
+    sessions = applyInjuries(sessions, INJURIES);
+
+    plan.push({ weekNum: w + 1, weekStart, phase, sessions, events: thisWeekEvents });
+  }
+  return plan;
+}
+
+function generateAndRender() {
+  const plan = generatePlan();
+  renderPlan(plan);
+}
+
+function renderPlan(plan) {
+  const grid = document.getElementById('plan-grid');
+  if (!plan.length) {
+    grid.innerHTML = '<div class="empty"><div class="ico">🗓️</div>Voeg events toe om een plan te genereren.</div>';
+    return;
+  }
+
+  const now  = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const phaseLabels = { base:'Base', build:'Build', peak:'Peak', taper:'Taper', race:'Race', recovery:'Herstel' };
+
+  grid.innerHTML = plan.map((week, i) => {
+    const wStart = week.weekStart;
+    const wEnd   = new Date(wStart.getTime() + 6 * 86400000);
+    const isCurrent = today >= wStart.toISOString().slice(0, 10) && today <= wEnd.toISOString().slice(0, 10);
+    const dateLabel = `${wStart.getDate()} ${monthShort(wStart)} — ${wEnd.getDate()} ${monthShort(wEnd)}`;
+
+    const sessHtml = week.sessions.map(s => {
+      const key = `w${week.weekNum}_${s.day}_${s.name.replace(/\s+/g, '_')}`;
+      const done = DONE_SET.has(key);
+      if (s.type === 'rest' && !s.name.includes('Race')) {
+        return `<div class="session-item rest"><div class="session-day">${s.day}</div><div class="session-name">${s.name}</div></div>`;
+      }
+      return `
+        <div class="session-item ${s.type}">
+          <div class="session-day">${s.day}</div>
+          <div class="session-name">${s.name}</div>
+          <div class="session-meta">${s.meta}</div>
+          ${s.desc ? `<div class="session-meta" style="color:var(--t3)">${s.desc}</div>` : ''}
+          <div class="session-actions">
+            <button class="btn btn-sm btn-garmin" onclick="pushSessionToGarmin(this,'${escHtml(s.name)}','${s.type}','${escHtml(s.meta)}',${week.weekNum},'${s.day}')">
+              ⌚ Garmin
+            </button>
+          </div>
+          <label class="session-done-cb">
+            <input type="checkbox" ${done ? 'checked' : ''} onchange="toggleDone('${key}',this.checked)">
+            Gedaan
+          </label>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="week-card ${isCurrent ? 'current-week' : ''} ${isCurrent ? 'open' : ''}">
+        <div class="week-header" onclick="toggleWeek(this.parentElement)">
+          <div>
+            <span class="week-label">Week ${week.weekNum}</span>
+            <span style="color:var(--t3);font-size:13px;margin-left:10px">${dateLabel}</span>
+            ${week.events.map(e => `<span style="margin-left:8px;font-size:12px">${getFlag(e.country)} ${e.name}</span>`).join('')}
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="week-phase phase-${week.phase}">${phaseLabels[week.phase]}</span>
+            <span class="week-toggle">▼</span>
+          </div>
+        </div>
+        <div class="sessions-grid">${sessHtml}</div>
+      </div>`;
+  }).join('');
+}
+
+function toggleWeek(card) {
+  card.classList.toggle('open');
+}
+
+function monthShort(d) {
+  return ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'][d.getMonth()];
+}
+
+function escHtml(s) {
+  return (s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+// ── SESSION DONE ──────────────────────────────────────────────
+async function toggleDone(key, checked) {
+  if (checked) {
+    await sb.from('session_done').upsert({ user_id: USER.id, session_key: key });
+    DONE_SET.add(key);
+  } else {
+    await sb.from('session_done').delete().eq('user_id', USER.id).eq('session_key', key);
+    DONE_SET.delete(key);
+  }
+}
+
+// ── GARMIN PUSH ───────────────────────────────────────────────
+async function pushSessionToGarmin(btn, name, type, meta, week, day) {
+  if (!PROFILE?.garmin_email) {
+    toast('Koppel eerst je Garmin account via Profiel.', 'error');
+    switchTab('profile');
+    return;
+  }
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner"></span>';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/garmin-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ACCESS_TOKEN}` },
+      body: JSON.stringify({ name, type, description: meta, notes: `Week ${week} ${day}` }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      toast(`"${name}" gepusht naar Garmin!`, 'success');
+    } else {
+      toast(data.error || 'Garmin push mislukt.', 'error');
+    }
+  } catch {
+    toast('Verbindingsfout bij Garmin push.', 'error');
+  } finally {
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  }
+}
+
+// ── STRAVA SYNC ───────────────────────────────────────────────
+async function syncStrava(btn) {
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner"></span> Syncing…';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/strava-sync', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` },
+    });
+    const data = await res.json();
+    if (data.ok) {
+      ACTIVITIES = data.activities || [];
+      // Update profile stats
+      if (data.stats) {
+        Object.assign(PROFILE, data.stats);
+        updateHero();
+        renderProfileTab();
+      }
+      renderActivities();
+      toast(`${data.activityCount} activiteiten gesynchroniseerd!`, 'success');
+    } else {
+      toast(data.error || 'Sync mislukt.', 'error');
+    }
+  } catch {
+    toast('Verbindingsfout bij Strava sync.', 'error');
+  } finally {
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  }
+}
+
+function renderActivities() {
+  const list = document.getElementById('activities-list');
+  if (!ACTIVITIES.length) {
+    list.innerHTML = '<div class="empty"><div class="ico">🏃</div>Geen activiteiten gevonden.</div>';
+    return;
+  }
+  const typeEmoji = { Run:'🏃', Ride:'🚴', Swim:'🏊', Walk:'🚶' };
+  const typeClass = { Run:'run', Ride:'bike', Swim:'swim' };
+  list.innerHTML = ACTIVITIES.map(a => {
+    const km  = a.distance ? (a.distance / 1000).toFixed(1) : null;
+    const dur = a.duration ? `${Math.floor(a.duration / 60)}' ${a.duration % 60}"` : null;
+    return `
+      <div class="activity-row">
+        <div class="act-icon ${typeClass[a.type] || 'other'}">${typeEmoji[a.type] || '🏅'}</div>
+        <div class="act-info">
+          <div class="act-name">${a.name}</div>
+          <div class="act-meta">${a.date || ''} ${a.type ? '· ' + a.type : ''}</div>
+        </div>
+        <div class="act-stats">
+          ${km    ? `<div class="act-stat"><div class="v">${km}</div><div class="l">km</div></div>` : ''}
+          ${dur   ? `<div class="act-stat"><div class="v">${dur}</div><div class="l">tijd</div></div>` : ''}
+          ${a.hr  ? `<div class="act-stat"><div class="v">${a.hr}</div><div class="l">bpm</div></div>` : ''}
+          ${a.watts ? `<div class="act-stat"><div class="v">${a.watts}</div><div class="l">W</div></div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── EVENTS ────────────────────────────────────────────────────
+function renderEventsTab() {
+  const list = document.getElementById('events-list');
+  if (!EVENTS.length) {
+    list.innerHTML = '<div class="empty"><div class="ico">📅</div>Nog geen events toegevoegd.</div>';
+    return;
+  }
+  list.innerHTML = EVENTS.map(e => {
+    const d = new Date(e.date);
+    return `
+      <div class="event-row">
+        <div class="event-date-box">
+          <div class="day">${String(d.getDate()).padStart(2,'0')}</div>
+          <div class="mon">${monthShort(d)} '${String(d.getFullYear()).slice(2)}</div>
+        </div>
+        <div class="event-flag">${getFlag(e.country)}</div>
+        <div class="event-info">
+          <div class="event-name">${e.name}</div>
+          <div class="event-sub">${eventTypeLabel(e.type)} ${e.city ? '· ' + e.city : ''} ${e.country ? '· ' + e.country : ''}</div>
+          ${(e.dist_swim || e.dist_bike || e.dist_run) ? `
+          <div class="event-sub" style="margin-top:2px">
+            ${e.dist_swim ? `🏊 ${e.dist_swim}km` : ''} ${e.dist_bike ? `🚴 ${e.dist_bike}km` : ''} ${e.dist_run ? `🏃 ${e.dist_run}km` : ''}
+          </div>` : ''}
+        </div>
+        <span class="priority-badge priority-${e.priority}">${e.priority}</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="openEventModal(${JSON.stringify(e).split('"').join('&quot;')})">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteEvent('${e.id}')">✕</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openEventModal(ev) {
+  document.getElementById('event-modal-title').textContent = ev ? 'Event bewerken' : 'Nieuw event';
+  document.getElementById('event-id').value   = ev?.id || '';
+  document.getElementById('ev-name').value    = ev?.name || '';
+  document.getElementById('ev-date').value    = ev?.date || '';
+  document.getElementById('ev-priority').value= ev?.priority || 'A';
+  document.getElementById('ev-type').value    = ev?.type || 'HIM';
+  document.getElementById('ev-country').value = ev?.country || '';
+  document.getElementById('ev-city').value    = ev?.city || '';
+  document.getElementById('ev-swim').value    = ev?.dist_swim || '';
+  document.getElementById('ev-bike').value    = ev?.dist_bike || '';
+  document.getElementById('ev-run').value     = ev?.dist_run || '';
+  document.getElementById('ev-notes').value   = ev?.notes || '';
+  openModal('event-modal');
+}
+
+async function saveEvent() {
+  const id   = document.getElementById('event-id').value;
+  const data = {
+    user_id:   USER.id,
+    name:      document.getElementById('ev-name').value.trim(),
+    date:      document.getElementById('ev-date').value,
+    priority:  document.getElementById('ev-priority').value,
+    type:      document.getElementById('ev-type').value,
+    country:   document.getElementById('ev-country').value.trim(),
+    city:      document.getElementById('ev-city').value.trim(),
+    dist_swim: parseFloat(document.getElementById('ev-swim').value) || null,
+    dist_bike: parseFloat(document.getElementById('ev-bike').value) || null,
+    dist_run:  parseFloat(document.getElementById('ev-run').value)  || null,
+    notes:     document.getElementById('ev-notes').value.trim(),
+  };
+  if (!data.name || !data.date) { toast('Naam en datum zijn verplicht.', 'error'); return; }
+
+  let err;
+  if (id) {
+    ({ error: err } = await sb.from('events').update(data).eq('id', id));
+  } else {
+    ({ error: err } = await sb.from('events').insert(data));
+  }
+  if (err) { toast('Fout bij opslaan: ' + err.message, 'error'); return; }
+
+  closeModal('event-modal');
+  await loadAll();
+  updateHero();
+  generateAndRender();
+  updateCountdown();
+  toast('Event opgeslagen!', 'success');
+}
+
+async function deleteEvent(id) {
+  if (!confirm('Event verwijderen?')) return;
+  await sb.from('events').delete().eq('id', id);
+  await loadAll();
+  updateHero();
+  generateAndRender();
+  updateCountdown();
+  toast('Event verwijderd.', 'success');
+}
+
+// ── INJURIES ──────────────────────────────────────────────────
+const BODY_PARTS = ['knee','ankle','hip','itband','achilles','calf','hamstring','shoulder','back'];
+const BODY_LABELS = { knee:'Knie', ankle:'Enkel', hip:'Heup', itband:'ITB', achilles:'Achilles', calf:'Kuit', hamstring:'Hamstring', shoulder:'Schouder', back:'Rug' };
+
+function renderInjuriesTab() {
+  const list = document.getElementById('injuries-list');
+  if (!INJURIES.length) {
+    list.innerHTML = '<div class="empty"><div class="ico">🩺</div>Geen actieve blessures.</div>';
+    return;
+  }
+  list.innerHTML = INJURIES.map(inj => {
+    const active = !inj.end_date || inj.end_date >= new Date().toISOString().slice(0,10);
+    return `
+      <div class="injury-row">
+        <div class="severity-dot sev-${inj.severity}"></div>
+        <div class="injury-info">
+          <div class="injury-name">${inj.name} ${active ? '' : '<span style="color:var(--t3);font-size:12px">(hersteld)</span>'}</div>
+          <div class="injury-sub">${(inj.body_parts || []).map(p => BODY_LABELS[p] || p).join(', ')} · ${inj.severity}</div>
+          <div class="injury-sub">${inj.start_date} ${inj.end_date ? '→ ' + inj.end_date : '→ heden'}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="openInjuryModal(${JSON.stringify(inj).split('"').join('&quot;')})">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteInjury('${inj.id}')">✕</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openInjuryModal(inj) {
+  // Build body parts checkboxes
+  const grid = document.getElementById('bodyparts-grid');
+  grid.innerHTML = BODY_PARTS.map(p => `
+    <label style="display:flex;align-items:center;gap:5px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px">
+      <input type="checkbox" name="bp" value="${p}" ${(inj?.body_parts || []).includes(p) ? 'checked' : ''}>
+      ${BODY_LABELS[p]}
+    </label>`).join('');
+
+  document.getElementById('injury-modal-title').textContent = inj ? 'Blessure bewerken' : 'Blessure melden';
+  document.getElementById('inj-id').value       = inj?.id || '';
+  document.getElementById('inj-name').value     = inj?.name || '';
+  document.getElementById('inj-severity').value = inj?.severity || 'mild';
+  document.getElementById('inj-start').value    = inj?.start_date || new Date().toISOString().slice(0,10);
+  document.getElementById('inj-end').value      = inj?.end_date || '';
+  document.getElementById('inj-notes').value    = inj?.notes || '';
+  openModal('injury-modal');
+}
+
+async function saveInjury() {
+  const id    = document.getElementById('inj-id').value;
+  const parts = [...document.querySelectorAll('#bodyparts-grid input:checked')].map(i => i.value);
+  const data  = {
+    user_id:    USER.id,
+    name:       document.getElementById('inj-name').value.trim(),
+    body_parts: parts,
+    severity:   document.getElementById('inj-severity').value,
+    start_date: document.getElementById('inj-start').value,
+    end_date:   document.getElementById('inj-end').value || null,
+    notes:      document.getElementById('inj-notes').value.trim(),
+  };
+  if (!data.name || !data.start_date) { toast('Naam en startdatum zijn verplicht.', 'error'); return; }
+
+  let err;
+  if (id) {
+    ({ error: err } = await sb.from('injuries').update(data).eq('id', id));
+  } else {
+    ({ error: err } = await sb.from('injuries').insert(data));
+  }
+  if (err) { toast('Fout: ' + err.message, 'error'); return; }
+
+  closeModal('injury-modal');
+  await loadAll();
+  generateAndRender();
+  toast('Blessure opgeslagen!', 'success');
+}
+
+async function deleteInjury(id) {
+  if (!confirm('Blessure verwijderen?')) return;
+  await sb.from('injuries').delete().eq('id', id);
+  await loadAll();
+  generateAndRender();
+  toast('Blessure verwijderd.', 'success');
+}
+
+// ── HEALTH ────────────────────────────────────────────────────
+function renderHealthTab() {
+  // Most recent entry in stat cards
+  const latest = HEALTH[0];
+  if (latest) {
+    document.getElementById('g-readiness').textContent = latest.readiness ?? '—';
+    document.getElementById('g-battery').textContent   = latest.body_battery ?? '—';
+    document.getElementById('g-sleep').textContent     = latest.sleep_hours ?? '—';
+    document.getElementById('g-hrv').textContent       = latest.hrv ?? '—';
+    document.getElementById('g-stress').textContent    = latest.stress_pct != null ? latest.stress_pct + '%' : '—';
+    document.getElementById('g-steps').textContent     = latest.steps ? latest.steps.toLocaleString('nl') : '—';
+  }
+
+  // Log list
+  const logEl = document.getElementById('health-log-list');
+  if (!HEALTH.length) { logEl.innerHTML = '<div class="empty"><div class="ico">📊</div>Nog geen gegevens ingevoerd.</div>'; return; }
+  logEl.innerHTML = HEALTH.map(h => `
+    <div style="display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:6px">
+      <strong style="font-family:var(--font-c);font-size:16px;min-width:90px">${h.date}</strong>
+      <span style="font-size:13px;color:var(--t2)">
+        ${h.readiness != null ? `✅ ${h.readiness}` : ''} ${h.body_battery != null ? `🔋 ${h.body_battery}` : ''} ${h.sleep_hours != null ? `😴 ${h.sleep_hours}h` : ''} ${h.hrv != null ? `💓 HRV ${h.hrv}` : ''} ${h.stress_pct != null ? `😰 ${h.stress_pct}%` : ''} ${h.steps != null ? `👟 ${h.steps.toLocaleString('nl')}` : ''}
+      </span>
+      <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="deleteHealth('${h.id}')">✕</button>
+    </div>`).join('');
+}
+
+function openHealthModal() {
+  document.getElementById('hl-date').value        = new Date().toISOString().slice(0, 10);
+  document.getElementById('hl-readiness').value   = '';
+  document.getElementById('hl-battery').value     = '';
+  document.getElementById('hl-sleep').value       = '';
+  document.getElementById('hl-sleep-score').value = '';
+  document.getElementById('hl-hrv').value         = '';
+  document.getElementById('hl-stress').value      = '';
+  document.getElementById('hl-steps').value       = '';
+  document.getElementById('hl-notes').value       = '';
+  openModal('health-modal');
+}
+
+async function saveHealth() {
+  const data = {
+    user_id:     USER.id,
+    date:        document.getElementById('hl-date').value,
+    readiness:   parseInt(document.getElementById('hl-readiness').value) || null,
+    body_battery:parseInt(document.getElementById('hl-battery').value) || null,
+    sleep_hours: parseFloat(document.getElementById('hl-sleep').value) || null,
+    sleep_score: parseInt(document.getElementById('hl-sleep-score').value) || null,
+    hrv:         parseInt(document.getElementById('hl-hrv').value) || null,
+    stress_pct:  parseInt(document.getElementById('hl-stress').value) || null,
+    steps:       parseInt(document.getElementById('hl-steps').value) || null,
+    notes:       document.getElementById('hl-notes').value.trim() || null,
+  };
+  if (!data.date) { toast('Datum is verplicht.', 'error'); return; }
+
+  const { error } = await sb.from('health_logs').upsert(data, { onConflict: 'user_id,date' });
+  if (error) { toast('Fout: ' + error.message, 'error'); return; }
+
+  closeModal('health-modal');
+  const res = await sb.from('health_logs').select('*').eq('user_id', USER.id).order('date', { ascending: false }).limit(30);
+  HEALTH = res.data || [];
+  renderHealthTab();
+  toast('Gezondheidsdata opgeslagen!', 'success');
+}
+
+async function deleteHealth(id) {
+  await sb.from('health_logs').delete().eq('id', id);
+  const res = await sb.from('health_logs').select('*').eq('user_id', USER.id).order('date', { ascending: false }).limit(30);
+  HEALTH = res.data || [];
+  renderHealthTab();
+  toast('Verwijderd.', 'success');
+}
+
+// ── PROFILE ───────────────────────────────────────────────────
+function renderProfileTab() {
+  const p = PROFILE || {};
+  document.getElementById('profile-name').textContent = p.display_name || USER?.email || '—';
+
+  // Avatar
+  const avatarLarge = document.getElementById('profile-avatar-large');
+  if (p.avatar_url) {
+    avatarLarge.innerHTML = `<img src="${p.avatar_url}" alt="avatar">`;
+  } else {
+    avatarLarge.textContent = (p.display_name || 'U').charAt(0).toUpperCase();
+  }
+
+  document.getElementById('p-ftp').value     = p.ftp      || '';
+  document.getElementById('p-weight').value  = p.weight_kg|| '';
+  document.getElementById('p-mhr').value     = p.max_hr   || '';
+  document.getElementById('p-rhr').value     = p.rest_hr  || '';
+  document.getElementById('p-vo2').value     = p.vo2max   || '';
+  document.getElementById('p-runpace').value = p.run_pace || '';
+  document.getElementById('p-swimcss').value = p.swim_css || '';
+  document.getElementById('p-bikcad').value  = p.bike_cad || '';
+  document.getElementById('p-garmin-email').value = p.garmin_email || '';
+}
+
+function updateAvatar() {
+  const btn = document.getElementById('avatar-btn');
+  const p   = PROFILE || {};
+  if (p.avatar_url) {
+    btn.innerHTML = `<img src="${p.avatar_url}" alt="avatar">`;
+  } else {
+    btn.textContent = (p.display_name || 'U').charAt(0).toUpperCase();
+  }
+}
+
+async function saveProfile() {
+  const data = {
+    ftp:      parseInt(document.getElementById('p-ftp').value)      || null,
+    weight_kg:parseFloat(document.getElementById('p-weight').value) || null,
+    max_hr:   parseInt(document.getElementById('p-mhr').value)      || null,
+    rest_hr:  parseInt(document.getElementById('p-rhr').value)      || null,
+    vo2max:   parseFloat(document.getElementById('p-vo2').value)    || null,
+    run_pace: document.getElementById('p-runpace').value.trim()     || null,
+    swim_css: document.getElementById('p-swimcss').value.trim()     || null,
+    bike_cad: parseInt(document.getElementById('p-bikcad').value)   || null,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await sb.from('profiles').update(data).eq('id', USER.id);
+  if (error) { toast('Fout: ' + error.message, 'error'); return; }
+  Object.assign(PROFILE, data);
+  updateHero();
+  generateAndRender();
+  toast('Profiel opgeslagen!', 'success');
+}
+
+async function saveGarmin() {
+  const email = document.getElementById('p-garmin-email').value.trim();
+  const pw    = document.getElementById('p-garmin-pw').value;
+  if (!email || !pw) { toast('Vul e-mail en wachtwoord in.', 'error'); return; }
+
+  const { error } = await sb.from('profiles').update({
+    garmin_email:    email,
+    garmin_password: pw,
+    updated_at: new Date().toISOString(),
+  }).eq('id', USER.id);
+  if (error) { toast('Fout: ' + error.message, 'error'); return; }
+  PROFILE.garmin_email = email;
+  PROFILE.garmin_password = pw;
+  document.getElementById('p-garmin-pw').value = '';
+  toast('Garmin credentials opgeslagen!', 'success');
+}
+
+// ── NAV ───────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#topbar nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${name}`)?.classList.add('active');
+  const idx = { plan:0, activities:1, events:2, injuries:3, health:4, profile:5 }[name];
+  document.querySelectorAll('#topbar nav button')[idx]?.classList.add('active');
+}
+
+// ── MODAL HELPERS ─────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+// Close on backdrop click
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+// ── THEME ─────────────────────────────────────────────────────
+function toggleTheme() {
+  const html  = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.querySelector('.theme-btn').textContent = isDark ? '🌙' : '☀️';
+}
+
+// ── TOAST ─────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+</script>
+</body>
+</html>
