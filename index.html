@@ -409,6 +409,111 @@ a { color: var(--accent); text-decoration: none; }
 .act-stat .v { font-family: var(--font-c); font-size: 18px; font-weight: 700; }
 .act-stat .l { font-size: 11px; color: var(--t3); }
 
+/* ── ACTIVITY DETAIL PANEL ─────────────────────────────── */
+.activity-detail {
+  position: fixed; inset: 0; z-index: 200;
+  background: var(--bg);
+  transform: translateX(100%);
+  transition: transform .32s cubic-bezier(.4,0,.2,1);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.activity-detail.open { transform: translateX(0); }
+.ad-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  background: var(--card); flex-shrink: 0;
+}
+.ad-topbar-title { font-family: var(--font-c); font-weight: 700; font-size: 16px; }
+.ad-back-btn {
+  background: none; border: none; color: var(--t1); cursor: pointer;
+  display: flex; align-items: center; padding: 6px;
+  border-radius: 8px; transition: background .15s;
+}
+.ad-back-btn:hover { background: var(--bg3); }
+.ad-body {
+  flex: 1; overflow-y: auto; padding: 20px;
+  display: flex; flex-direction: column; gap: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+.ad-header-info {
+  display: flex; gap: 14px; align-items: flex-start;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 16px;
+}
+.ad-sport-icon {
+  width: 52px; height: 52px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.ad-sport-icon.run  { background: rgba(34,197,94,.15);  color: #22c55e; }
+.ad-sport-icon.bike { background: rgba(59,130,246,.15); color: #3b82f6; }
+.ad-sport-icon.swim { background: rgba(6,182,212,.15);  color: #06b6d4; }
+.ad-sport-icon.other{ background: var(--bg3); color: var(--t2); }
+.ad-sport-icon svg  { width: 28px; height: 28px; }
+.ad-act-name { font-family: var(--font-c); font-size: 19px; font-weight: 800; line-height: 1.2; }
+.ad-act-meta { font-size: 13px; color: var(--t2); margin-top: 4px; }
+.ad-strava-link {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 13px;
+  color: #fc4c02; text-decoration: none; margin-top: 6px; font-weight: 600;
+}
+.ad-stats-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+}
+.ad-stat {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 14px 10px; text-align: center;
+}
+.ad-stat .v { font-family: var(--font-c); font-size: 19px; font-weight: 800; line-height: 1; }
+.ad-stat .l { font-size: 10px; color: var(--t3); text-transform: uppercase; letter-spacing: .5px; margin-top: 4px; }
+.ad-section {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 16px;
+}
+.ad-section-title {
+  font-family: var(--font-c); font-size: 17px; font-weight: 700; margin-bottom: 14px;
+}
+.ad-chart-wrap { position: relative; height: 160px; }
+.ad-chart-wrap canvas { width: 100% !important; height: 100% !important; }
+/* Splits */
+.ad-splits-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ad-splits-table th {
+  font-size: 10px; color: var(--t3); text-transform: uppercase; letter-spacing: .5px;
+  padding: 0 0 8px; text-align: left; font-weight: 600;
+}
+.ad-splits-table td { padding: 5px 0; border-top: 1px solid var(--border); vertical-align: middle; }
+.ad-splits-table .km-num { font-weight: 700; width: 32px; color: var(--t2); font-size: 13px; }
+.split-bar-cell { width: 100%; }
+.split-bar-wrap {
+  display: flex; align-items: center; gap: 0;
+  background: rgba(20,255,155,.06); border-radius: 5px;
+  overflow: hidden; height: 32px; position: relative;
+}
+.split-bar-fill {
+  height: 100%; background: var(--accent-muted);
+  border-radius: 5px; flex-shrink: 0;
+}
+.split-bar-label {
+  position: absolute; left: 10px; font-size: 14px; font-weight: 700; color: var(--accent);
+}
+.delta-col { text-align: right; width: 56px; padding-left: 6px !important; }
+.pace-faster { color: #22c55e; font-size: 13px; font-weight: 600; }
+.pace-slower { color: #ef4444; font-size: 13px; font-weight: 600; }
+/* HR zones */
+.ad-hr-zones { display: flex; flex-direction: column; gap: 14px; }
+.ad-hr-zone-row { display: flex; align-items: center; gap: 10px; }
+.ad-hr-zone-info { width: 110px; flex-shrink: 0; }
+.ad-hr-zone-name { font-weight: 700; font-size: 14px; }
+.ad-hr-zone-bpm  { font-size: 11px; color: var(--t3); }
+.ad-hr-zone-bar-bg { flex: 1; background: var(--bg3); border-radius: 4px; height: 14px; overflow: hidden; }
+.ad-hr-zone-bar { height: 100%; border-radius: 4px; min-width: 2px; }
+.ad-hr-zone-right { width: 80px; text-align: right; flex-shrink: 0; }
+.ad-hr-zone-pct  { font-size: 13px; font-weight: 700; }
+.ad-hr-zone-time { font-size: 11px; color: var(--t3); }
+/* Activity row clickable */
+.activity-row { cursor: pointer; transition: background .15s; }
+.activity-row:hover { background: var(--bg3); }
+.act-chevron { color: var(--t3); font-size: 18px; margin-left: 4px; flex-shrink: 0; }
+
 /* ── EVENTS ─────────────────────────────────────────────── */
 #events-list { display: grid; gap: 8px; margin-bottom: 16px; }
 .event-row {
@@ -1082,6 +1187,18 @@ a { color: var(--accent); text-decoration: none; }
       <button class="btn btn-primary" onclick="saveHealth()">Opslaan</button>
     </div>
   </div>
+</div>
+
+<!-- Activity Detail Panel -->
+<div id="activity-detail" class="activity-detail">
+  <div class="ad-topbar">
+    <button class="ad-back-btn" onclick="closeActivityDetail()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 5l-7 7 7 7"/></svg>
+    </button>
+    <span class="ad-topbar-title" id="ad-panel-title">Activiteit</span>
+    <div style="width:40px"></div>
+  </div>
+  <div id="ad-body" class="ad-body"></div>
 </div>
 
 <!-- Toast container -->
@@ -1890,32 +2007,355 @@ async function syncStrava(btn) {
   }
 }
 
+function fmtMovingTime(s) {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  return `${m}:${String(sec).padStart(2,'0')}`;
+}
+
+function fmtPaceFromMps(mps) {
+  if (!mps || mps <= 0) return '—';
+  const spm = 1000 / mps;
+  return `${Math.floor(spm/60)}:${String(Math.round(spm%60)).padStart(2,'0')}`;
+}
+
 function renderActivities() {
   const list = document.getElementById('activities-list');
   if (!ACTIVITIES.length) {
-    list.innerHTML = '<div class="empty"><div class="ico">🏃</div>Geen activiteiten gevonden.</div>';
+    list.innerHTML = '<div class="empty">Klik op "Sync Strava" om activiteiten te laden.</div>';
     return;
   }
-  const typeEmoji = { Run:'🏃', Ride:'🚴', Swim:'🏊', Walk:'🚶' };
   const typeClass = { Run:'run', Ride:'bike', Swim:'swim' };
+  const typeIcon  = { Run: ICONS.run, Ride: ICONS.bike, Swim: ICONS.swim };
+  const typeLabel = { Run:'Hardlopen', Ride:'Fietsen', Swim:'Zwemmen', Walk:'Wandelen' };
   list.innerHTML = ACTIVITIES.map(a => {
-    const km  = a.distance ? (a.distance / 1000).toFixed(1) : null;
-    const dur = a.duration ? `${Math.floor(a.duration / 60)}' ${a.duration % 60}"` : null;
+    const km  = a.distance ? (a.distance / 1000).toFixed(2) + ' km' : null;
+    const dur = a.duration ? fmtMovingTime(a.duration) : null;
     return `
-      <div class="activity-row">
-        <div class="act-icon ${typeClass[a.type] || 'other'}">${typeEmoji[a.type] || '🏅'}</div>
+      <div class="activity-row" onclick="openActivityDetail(${a.id})">
+        <div class="act-icon ${typeClass[a.type] || 'other'}">${typeIcon[a.type] || ICONS.rest}</div>
         <div class="act-info">
           <div class="act-name">${a.name}</div>
-          <div class="act-meta">${a.date || ''} ${a.type ? '· ' + a.type : ''}</div>
+          <div class="act-meta">${a.date || ''} · ${typeLabel[a.type] || a.type || ''}</div>
         </div>
         <div class="act-stats">
-          ${km    ? `<div class="act-stat"><div class="v">${km}</div><div class="l">km</div></div>` : ''}
-          ${dur   ? `<div class="act-stat"><div class="v">${dur}</div><div class="l">tijd</div></div>` : ''}
-          ${a.hr  ? `<div class="act-stat"><div class="v">${a.hr}</div><div class="l">bpm</div></div>` : ''}
+          ${km  ? `<div class="act-stat"><div class="v">${km}</div><div class="l">afstand</div></div>` : ''}
+          ${dur ? `<div class="act-stat"><div class="v">${dur}</div><div class="l">tijd</div></div>` : ''}
+          ${a.hr ? `<div class="act-stat"><div class="v">${a.hr}</div><div class="l">bpm</div></div>` : ''}
           ${a.watts ? `<div class="act-stat"><div class="v">${a.watts}</div><div class="l">W</div></div>` : ''}
         </div>
+        <span class="act-chevron">›</span>
       </div>`;
   }).join('');
+}
+
+// ── ACTIVITY DETAIL ────────────────────────────────────────
+let _adCharts = {};
+
+async function openActivityDetail(activityId) {
+  const panel = document.getElementById('activity-detail');
+  document.getElementById('ad-panel-title').textContent = 'Activiteit';
+  document.getElementById('ad-body').innerHTML = `
+    <div style="display:flex;justify-content:center;align-items:center;height:200px">
+      <span class="spinner" style="width:32px;height:32px;border-width:3px"></span>
+    </div>`;
+  panel.classList.add('open');
+
+  // Destroy old charts
+  Object.values(_adCharts).forEach(c => c.destroy());
+  _adCharts = {};
+
+  try {
+    const res = await fetch(`/api/strava-activity?id=${activityId}`, {
+      headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Laden mislukt');
+    renderActivityDetail(data.activity, data.laps, data.streams);
+  } catch (e) {
+    document.getElementById('ad-body').innerHTML = `<div class="empty">${e.message}</div>`;
+  }
+}
+
+function closeActivityDetail() {
+  document.getElementById('activity-detail').classList.remove('open');
+  Object.values(_adCharts).forEach(c => c.destroy());
+  _adCharts = {};
+}
+
+function renderActivityDetail(act, laps, streams) {
+  const typeMap = {
+    Run:  { label:'Vrije hardloopsessie', cls:'run',  icon: ICONS.run  },
+    Ride: { label:'Fietsen',              cls:'bike', icon: ICONS.bike },
+    Swim: { label:'Zwemmen',              cls:'swim', icon: ICONS.swim },
+  };
+  const sport = typeMap[act.type] || { label: act.type, cls:'other', icon: ICONS.rest };
+
+  // Header
+  document.getElementById('ad-panel-title').textContent = act.name;
+
+  // Date/time
+  const d = new Date(act.start_date_local || act.start_date);
+  const monthsNL = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+  const dateStr = `${d.getDate()} ${monthsNL[d.getMonth()]} ${d.getFullYear()}`;
+  const timeStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  const endDate = new Date(d.getTime() + (act.elapsed_time || 0) * 1000);
+  const endStr  = `${String(endDate.getHours()).padStart(2,'0')}:${String(endDate.getMinutes()).padStart(2,'0')}`;
+  const loc = [act.location_city, act.location_country].filter(Boolean).join(', ');
+
+  // Key stats
+  const km   = act.distance ? (act.distance/1000).toFixed(2) + ' km' : '—';
+  const time = act.moving_time ? fmtMovingTime(act.moving_time) : '—';
+  const pace = act.average_speed
+    ? (act.type === 'Ride'
+        ? `${(act.average_speed * 3.6).toFixed(1)} km/h`
+        : fmtPaceFromMps(act.average_speed) + '/km')
+    : '—';
+  const elev = act.total_elevation_gain != null ? `${Math.round(act.total_elevation_gain)} m` : '—';
+  const hr   = act.average_heartrate ? `${Math.round(act.average_heartrate)} bpm` : '—';
+  const maxHR = act.max_heartrate || 185;
+  const cad  = act.average_cadence
+    ? `${Math.round(act.average_cadence * (act.type === 'Swim' ? 1 : 2))}`
+    : '—';
+  const cal  = act.calories ? `${Math.round(act.calories)}` : '—';
+
+  // ── SPLITS TABLE ──────────────────────────────────────────
+  let splitsHtml = '';
+  if (laps.length > 1) {
+    const maxSpeed = Math.max(...laps.map(l => l.average_speed || 0));
+    splitsHtml = `
+      <div class="ad-section">
+        <div class="ad-section-title">Splitsingen</div>
+        <table class="ad-splits-table">
+          <thead>
+            <tr>
+              <th>KM</th>
+              <th>GEM. TEMPO</th>
+              <th class="delta-col">+/-</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${laps.map((lap, i) => {
+              const lapPace = act.type === 'Ride'
+                ? `${(lap.average_speed * 3.6).toFixed(1)} km/h`
+                : fmtPaceFromMps(lap.average_speed) + '/km';
+              const barW = maxSpeed > 0 ? Math.round((lap.average_speed / maxSpeed) * 100) : 50;
+
+              let deltaHtml = '';
+              if (i > 0) {
+                const prev = laps[i-1].average_speed || 0;
+                const curr = lap.average_speed || 0;
+                const diffSec = Math.round((1000 / curr) - (1000 / prev));
+                if (diffSec !== 0 && prev > 0 && curr > 0) {
+                  const sign = diffSec > 0 ? '+' : '';
+                  const abs  = Math.abs(diffSec);
+                  const cls  = diffSec < 0 ? 'pace-faster' : 'pace-slower';
+                  deltaHtml  = `<span class="${cls}">${sign}0:${String(abs).padStart(2,'0')}</span>`;
+                }
+              }
+
+              return `<tr>
+                <td class="km-num">${i+1}</td>
+                <td class="split-bar-cell">
+                  <div class="split-bar-wrap">
+                    <div class="split-bar-fill" style="width:${barW}%"></div>
+                    <span class="split-bar-label">${lapPace}</span>
+                  </div>
+                </td>
+                <td class="delta-col">${deltaHtml}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  // ── HR ZONES ─────────────────────────────────────────────
+  let hrZonesHtml = '';
+  if (streams.heartrate?.data?.length) {
+    const hrData = streams.heartrate.data;
+    const total  = hrData.length;
+    const zDefs = [
+      { name:'Zone 1', color:'#64748b', maxBpm: Math.round(maxHR*.60) },
+      { name:'Zone 2', color:'#3b82f6', maxBpm: Math.round(maxHR*.70) },
+      { name:'Zone 3', color:'#22c55e', maxBpm: Math.round(maxHR*.80) },
+      { name:'Zone 4', color:'#f59e0b', maxBpm: Math.round(maxHR*.90) },
+      { name:'Zone 5', color:'#ef4444', maxBpm: Infinity },
+    ];
+    const counts = [0,0,0,0,0];
+    hrData.forEach(bpm => {
+      for (let z = 0; z < zDefs.length; z++) {
+        if (bpm <= zDefs[z].maxBpm) { counts[z]++; break; }
+        if (z === zDefs.length - 1)   counts[z]++;
+      }
+    });
+    const prevBpm = [0, zDefs[0].maxBpm, zDefs[1].maxBpm, zDefs[2].maxBpm, zDefs[3].maxBpm];
+    hrZonesHtml = `
+      <div class="ad-section">
+        <div class="ad-section-title">Hartslagzones</div>
+        <div class="ad-hr-zones">
+          ${zDefs.map((z, i) => {
+            const pct     = total ? Math.round(counts[i] / total * 100) : 0;
+            const secs    = total ? Math.round(counts[i] / total * act.moving_time) : 0;
+            const timeStr = `${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')}`;
+            const bpmTxt  = i < 4 ? `${prevBpm[i]+1}-${z.maxBpm} bpm` : `${prevBpm[i]+1}+ bpm`;
+            return `
+              <div class="ad-hr-zone-row">
+                <div class="ad-hr-zone-info">
+                  <div class="ad-hr-zone-name" style="color:${z.color}">${z.name}</div>
+                  <div class="ad-hr-zone-bpm">${bpmTxt}</div>
+                </div>
+                <div class="ad-hr-zone-bar-bg">
+                  <div class="ad-hr-zone-bar" style="width:${pct}%;background:${z.color}"></div>
+                </div>
+                <div class="ad-hr-zone-right">
+                  <div class="ad-hr-zone-pct">${pct}%</div>
+                  <div class="ad-hr-zone-time">${timeStr}</div>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }
+
+  // ── RENDER HTML ───────────────────────────────────────────
+  document.getElementById('ad-body').innerHTML = `
+    <div class="ad-header-info">
+      <div class="ad-sport-icon ${sport.cls}">${sport.icon}</div>
+      <div>
+        <div class="ad-act-name">${act.name}</div>
+        <div class="ad-act-meta">
+          ${sport.label}
+          ${act.distance ? ` · ${(act.distance/1000).toFixed(2)} km` : ''}
+        </div>
+        <div class="ad-act-meta">${dateStr} van ${timeStr} – ${endStr}${loc ? ' · ' + loc : ''}</div>
+        <a class="ad-strava-link" href="https://www.strava.com/activities/${act.id}" target="_blank">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#fc4c02"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.599h4.172L10.463 0l-7 13.828h4.169"/></svg>
+          Bekijken op Strava
+        </a>
+      </div>
+    </div>
+
+    <div class="ad-stats-grid">
+      <div class="ad-stat"><div class="v">${km}</div><div class="l">Afstand</div></div>
+      <div class="ad-stat"><div class="v">${time}</div><div class="l">Tijd</div></div>
+      <div class="ad-stat"><div class="v">${pace}</div><div class="l">${act.type === 'Ride' ? 'Gem. snelheid' : 'Gem. tempo'}</div></div>
+      <div class="ad-stat"><div class="v">${elev}</div><div class="l">Hoogtewinst</div></div>
+      <div class="ad-stat"><div class="v">${hr}</div><div class="l">Gem. HS</div></div>
+      <div class="ad-stat"><div class="v">${cad !== '—' ? cad : (act.average_watts ? act.average_watts + ' W' : '—')}</div><div class="l">${cad !== '—' ? 'Cadans' : 'Vermogen'}</div></div>
+      ${cal !== '—' ? `<div class="ad-stat"><div class="v">${cal}</div><div class="l">Calorieën</div></div>` : ''}
+    </div>
+
+    ${splitsHtml}
+
+    ${streams.velocity_smooth?.data?.length ? `
+    <div class="ad-section">
+      <div class="ad-section-title">Tempo</div>
+      <div class="ad-chart-wrap"><canvas id="ad-pace-chart"></canvas></div>
+      <div style="margin-top:12px;display:flex;justify-content:space-between;font-size:13px;color:var(--t2)">
+        <span>Gem. tempo <strong style="color:var(--t1)">${pace}</strong></span>
+        ${act.max_speed ? `<span>Max. tempo <strong style="color:var(--t1)">${fmtPaceFromMps(act.max_speed)}/km</strong></span>` : ''}
+      </div>
+    </div>` : ''}
+
+    ${streams.altitude?.data?.length ? `
+    <div class="ad-section">
+      <div class="ad-section-title">Hoogteverschil</div>
+      <div class="ad-chart-wrap"><canvas id="ad-elev-chart"></canvas></div>
+      <div style="margin-top:12px;display:flex;justify-content:space-between;font-size:13px;color:var(--t2)">
+        <span>Hoogtewinst <strong style="color:var(--t1)">${elev}</strong></span>
+        ${act.elev_high ? `<span>Max. hoogte <strong style="color:var(--t1)">${Math.round(act.elev_high)} m</strong></span>` : ''}
+      </div>
+    </div>` : ''}
+
+    ${hrZonesHtml}
+  `;
+
+  // ── BUILD CHARTS ──────────────────────────────────────────
+  const chartDefaults = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+  };
+
+  if (streams.velocity_smooth?.data?.length) {
+    const velRaw  = streams.velocity_smooth.data;
+    const distRaw = streams.distance?.data || velRaw.map((_, i) => i * 5);
+    const step = Math.max(1, Math.floor(velRaw.length / 250));
+    const labels = [], paces = [];
+    for (let i = 0; i < velRaw.length; i += step) {
+      if (velRaw[i] > 0.3) {
+        labels.push((distRaw[i] / 1000).toFixed(2));
+        paces.push(+(1000 / velRaw[i] / 60).toFixed(4));
+      }
+    }
+    _adCharts.pace = new Chart(document.getElementById('ad-pace-chart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: paces,
+          borderColor: '#ef4444',
+          backgroundColor: 'rgba(239,68,68,.12)',
+          fill: true, borderWidth: 1.5, pointRadius: 0, tension: 0.3,
+        }],
+      },
+      options: {
+        ...chartDefaults,
+        scales: {
+          x: {
+            ticks: { color:'#64748b', maxTicksLimit:6, callback: (_,i) => labels[i] ? labels[i]+' km' : '' },
+            grid:  { color:'rgba(255,255,255,.05)' },
+          },
+          y: {
+            reverse: true,
+            ticks: {
+              color: '#64748b',
+              callback: v => { const m=Math.floor(v); const s=Math.round((v-m)*60); return `${m}:${String(s).padStart(2,'0')}`; },
+            },
+            grid: { color:'rgba(255,255,255,.05)' },
+          },
+        },
+      },
+    });
+  }
+
+  if (streams.altitude?.data?.length) {
+    const altRaw  = streams.altitude.data;
+    const distRaw = streams.distance?.data || altRaw.map((_, i) => i * 5);
+    const step = Math.max(1, Math.floor(altRaw.length / 250));
+    const labels = [], alts = [];
+    for (let i = 0; i < altRaw.length; i += step) {
+      labels.push((distRaw[i] / 1000).toFixed(2));
+      alts.push(altRaw[i]);
+    }
+    _adCharts.elev = new Chart(document.getElementById('ad-elev-chart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: alts,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,.2)',
+          fill: true, borderWidth: 1.5, pointRadius: 0, tension: 0.4,
+        }],
+      },
+      options: {
+        ...chartDefaults,
+        scales: {
+          x: {
+            ticks: { color:'#64748b', maxTicksLimit:6, callback: (_,i) => labels[i] ? labels[i]+' km' : '' },
+            grid:  { color:'rgba(255,255,255,.05)' },
+          },
+          y: {
+            ticks: { color:'#64748b', callback: v => v+' m' },
+            grid:  { color:'rgba(255,255,255,.05)' },
+          },
+        },
+      },
+    });
+  }
 }
 
 // ── EVENTS ────────────────────────────────────────────────────
