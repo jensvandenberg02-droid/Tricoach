@@ -35,6 +35,7 @@
   --r-sm:     10px;
   --shadow:   0 4px 32px rgba(0,0,0,.5);
   --shadow-green: 0 0 24px rgba(34,197,94,.12);
+  --accent-muted: rgba(34,197,94,.2);
 }
 [data-theme="light"] {
   --bg:    #f0f2f5;
@@ -3107,7 +3108,11 @@ async function toggleWeekTask(key, el) {
   const done = DONE_SET.has(key);
   if (done) { DONE_SET.delete(key); el.classList.remove('done'); el.querySelector('.task-check').textContent = ''; }
   else      { DONE_SET.add(key);    el.classList.add('done');    el.querySelector('.task-check').textContent = '✓'; }
-  await sb.from('done_sessions').upsert({ user_id: USER.id, session_key: key, done: !done }, { onConflict: 'user_id,session_key' });
+  if (!done) {
+    await sb.from('session_done').upsert({ user_id: USER.id, session_key: key });
+  } else {
+    await sb.from('session_done').delete().eq('user_id', USER.id).eq('session_key', key);
+  }
 }
 
 // ── CALIBRATED PACES FROM RACE RESULTS ───────────────────────
@@ -3378,65 +3383,46 @@ function estimateFinishTime(ev) {
 }
 
 // ── STRAVA PACE SYNC ──────────────────────────────────────────
-// Grade-adjusted pace: elke 1% gemiddelde helling voegt ~12 sec/km toe
-function gradeAdjustedPaceSec(moving_time, distance_m, elevation_gain_m) {
-  const rawPaceSec = moving_time / distance_m * 1000; // sec per km
-  const avgGradePct = distance_m > 0 ? (elevation_gain_m / distance_m) * 100 : 0;
-  return rawPaceSec - (avgGradePct * 12); // corrigeer naar vlak-equivalent
-}
-
 async function syncStravaPace() {
-  const { data: { session } } = await sb.auth.getSession();
-  const token = session?.provider_token;
-  if (!token) { toast('Log opnieuw in met Strava om pace te laden.', 'error'); return; }
+  if (!ACCESS_TOKEN) { toast('Niet ingelogd.', 'error'); return; }
+  if (!PROFILE?.strava_access_token && !PROFILE?.strava_refresh_token) {
+    toast('Koppel eerst je Strava account.', 'error'); return;
+  }
 
   toast('Strava activiteiten laden…', 'success');
   try {
-    const res = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=100', {
-      headers: { 'Authorization': `Bearer ${token}` },
+    // strava-sync haalt activiteiten op, berekent paces en slaat ze op in profiel
+    const syncRes = await fetch('/api/strava-sync', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` },
     });
-    const acts = await res.json();
-    if (!Array.isArray(acts)) { toast('Fout bij laden Strava data.', 'error'); return; }
+    const syncData = await syncRes.json();
+    if (!syncData.ok) { toast(syncData.error || 'Fout bij laden Strava data.', 'error'); return; }
 
-    const isType = (a, t) => a.type === t || a.sport_type === t;
-    let found = [];
+    const stats = syncData.stats || {};
+    const found = [];
 
-    // Run pace: elevation-adjusted, recentste 10 runs > 2km
-    const runs = acts.filter(a => isType(a, 'Run') && a.distance > 2000).slice(0, 10);
-    if (runs.length) {
-      const avgGAP = runs.reduce((s, r) => s + gradeAdjustedPaceSec(r.moving_time, r.distance, r.total_elevation_gain || 0), 0) / runs.length;
-      const m = Math.floor(avgGAP / 60), s = Math.round(avgGAP % 60);
-      document.getElementById('p-runpace').value = `${m}:${String(s).padStart(2, '0')}`;
-      found.push(`loop (${runs.length} ritten, helling gecorrigeerd)`);
+    if (stats.run_pace) {
+      document.getElementById('p-runpace').value = stats.run_pace;
+      found.push(`loop ${stats.run_pace}/km`);
+    }
+    if (stats.swim_css) {
+      document.getElementById('p-swimcss').value = stats.swim_css;
+      found.push(`zwem ${stats.swim_css}/100m`);
+    }
+    if (stats.ftp) {
+      document.getElementById('p-ftp').value = stats.ftp;
+      found.push(`FTP ~${stats.ftp}W`);
     }
 
-    // Zwem CSS: recentste 10 zwemsets > 200m
-    const swims = acts.filter(a => isType(a, 'Swim') && a.distance > 200).slice(0, 10);
-    if (swims.length) {
-      const avg = swims.reduce((s, r) => s + (r.moving_time / r.distance * 100), 0) / swims.length;
-      const m = Math.floor(avg / 60), s = Math.round(avg % 60);
-      document.getElementById('p-swimcss').value = `${m}:${String(s).padStart(2, '0')}`;
-      found.push(`zwem (${swims.length} sets)`);
-    }
-
-    // FTP-schatting uit fiets: 95% van hoogste gem. vermogen in een rit van 20+ min
-    const bikes = acts.filter(a => (isType(a, 'Ride') || isType(a, 'VirtualRide')) && a.moving_time > 1200 && a.average_watts);
-    if (bikes.length) {
-      const best = Math.max(...bikes.map(b => b.average_watts));
-      const ftp = Math.round(best * 0.95);
-      const ftpInput = document.getElementById('p-ftp');
-      if (ftpInput && ftp > 0) { ftpInput.value = ftp; found.push(`FTP ~${ftp}W`); }
-    }
-
-    // Triathlon splits: zoek triathlon-activiteiten voor zwem/loop pace
-    const tris = acts.filter(a => isType(a, 'Triathlon') || isType(a, 'VirtualTriathlon'));
-    if (tris.length && !swims.length) {
-      // Strava triathlon heeft geen aparte splits via API, maar we loggen het
-      found.push(`${tris.length} triathlon(s) gevonden`);
+    // Update local activities list
+    if (syncData.activities?.length) {
+      ACTIVITIES = syncData.activities;
+      renderActivities();
     }
 
     if (!found.length) {
-      toast('Geen activiteiten gevonden in Strava.', 'error');
+      toast('Geen trainingsdata gevonden in Strava.', 'error');
     } else {
       toast(`Geladen: ${found.join(', ')}. Klik Opslaan!`, 'success');
     }
