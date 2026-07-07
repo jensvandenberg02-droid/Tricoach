@@ -51,28 +51,28 @@ export default async function handler(req, res) {
       await client.login();
 
       // Haal vandaag's data op
-      const [userStats, sleepData, hrvData] = await Promise.allSettled([
-        client.getUserStats(user.garmin_email),
+      const [sleepData, heartRateData, stepsData] = await Promise.allSettled([
         client.getSleepData(today),
-        client.getHrvData(today),
+        client.getHeartRate(today),
+        client.getSteps(today),
       ]);
 
-      const stats   = userStats.status   === 'fulfilled' ? userStats.value   : null;
-      const sleep   = sleepData.status   === 'fulfilled' ? sleepData.value   : null;
-      const hrv     = hrvData.status     === 'fulfilled' ? hrvData.value     : null;
+      const sleep = sleepData.status     === 'fulfilled' ? sleepData.value     : null;
+      const hr    = heartRateData.status === 'fulfilled' ? heartRateData.value : null;
+      const steps = stepsData.status     === 'fulfilled' ? stepsData.value     : null;
 
       const healthLog = {
         user_id:      user.id,
         date:         today,
-        readiness:    stats?.bodyBatteryChargedValue     ?? null,
-        body_battery: stats?.bodyBatteryMostRecentValue  ?? null,
+        readiness:    null,
+        body_battery: null,
         sleep_hours:  sleep?.dailySleepDTO?.sleepTimeSeconds
                         ? Math.round(sleep.dailySleepDTO.sleepTimeSeconds / 360) / 10
                         : null,
         sleep_score:  sleep?.dailySleepDTO?.sleepScores?.overall?.value ?? null,
-        hrv:          hrv?.hrvSummary?.lastNight          ?? null,
-        stress_pct:   stats?.averageStressLevel           ?? null,
-        steps:        stats?.totalSteps                   ?? null,
+        hrv:          hr?.hrvSummary?.lastNight ?? hr?.lastNight ?? null,
+        stress_pct:   null,
+        steps:        Array.isArray(steps) ? steps.reduce((s, d) => s + (d.steps || 0), 0) || null : (steps?.totalSteps ?? null),
         notes:        'Automatisch gesynchroniseerd via Garmin',
       };
 
