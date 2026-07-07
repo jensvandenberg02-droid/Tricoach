@@ -1001,6 +1001,24 @@ a { color: var(--accent); text-decoration: none; }
         </div>
         <div class="form-row">
           <div class="form-group"><label>VO₂max</label><input class="form-control" id="p-vo2" type="number" placeholder="50"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Hartslagzones (bpm)</div>
+        <div style="font-size:13px;color:var(--t2);margin-bottom:12px">
+          Kopieer je zone-grenzen uit Garmin Connect → Gezondheid → Hartslagzones. Vul de <strong>bovengrens</strong> van elke zone in.
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label style="color:#64748b">Z1 max bpm</label><input class="form-control" id="p-z1" type="number" placeholder="114"></div>
+          <div class="form-group"><label style="color:#3b82f6">Z2 max bpm</label><input class="form-control" id="p-z2" type="number" placeholder="133"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label style="color:#22c55e">Z3 max bpm</label><input class="form-control" id="p-z3" type="number" placeholder="152"></div>
+          <div class="form-group"><label style="color:#f59e0b">Z4 max bpm</label><input class="form-control" id="p-z4" type="number" placeholder="171"></div>
+        </div>
+        <div style="font-size:12px;color:var(--t3);margin-top:4px">Zone 5 = alles boven Z4 max.</div>
+        <div class="form-row" style="margin-top:0">
           <div class="form-group"><label>Loop pace (min:sec/km)</label><input class="form-control" id="p-runpace" placeholder="5:30"></div>
         </div>
         <div class="form-row">
@@ -2189,11 +2207,13 @@ function renderActivityDetail(act, laps, streams) {
   if (streams.heartrate?.data?.length) {
     const hrData = streams.heartrate.data;
     const total  = hrData.length;
-    // Garmin/Firstbeat 5-zone model op basis van max HR uit profiel
-    const z1max = Math.round(maxHR * 0.60);
-    const z2max = Math.round(maxHR * 0.70);
-    const z3max = Math.round(maxHR * 0.80);
-    const z4max = Math.round(maxHR * 0.90);
+    // Zone-grenzen: gebruik custom bpm-waarden uit profiel als ingesteld,
+    // anders bereken via % van max HR (Garmin standaard model)
+    const hasCustomZones = PROFILE?.hr_zone1 && PROFILE?.hr_zone2 && PROFILE?.hr_zone3 && PROFILE?.hr_zone4;
+    const z1max = hasCustomZones ? PROFILE.hr_zone1 : Math.round(maxHR * 0.60);
+    const z2max = hasCustomZones ? PROFILE.hr_zone2 : Math.round(maxHR * 0.70);
+    const z3max = hasCustomZones ? PROFILE.hr_zone3 : Math.round(maxHR * 0.80);
+    const z4max = hasCustomZones ? PROFILE.hr_zone4 : Math.round(maxHR * 0.90);
     const zDefs = [
       { name:'Zone 1', sub:'Herstel',    color:'#64748b', min: 0,      max: z1max },
       { name:'Zone 2', sub:'Aëroob',     color:'#3b82f6', min: z1max+1, max: z2max },
@@ -2209,7 +2229,7 @@ function renderActivityDetail(act, laps, streams) {
     });
     hrZonesHtml = `
       <div class="ad-section">
-        <div class="ad-section-title">Hartslagzones <span style="font-size:12px;color:var(--t3);font-weight:400">max ${maxHR} bpm</span></div>
+        <div class="ad-section-title">Hartslagzones <span style="font-size:12px;color:var(--t3);font-weight:400">${hasCustomZones ? 'eigen zones' : `% van max ${maxHR} bpm`}</span></div>
         <div class="ad-hr-zones">
           ${zDefs.map((z, i) => {
             const pct     = total ? Math.round(counts[i] / total * 100) : 0;
@@ -2854,6 +2874,10 @@ function renderProfileTab() {
   document.getElementById('p-swimcss').value = p.swim_css || '';
   document.getElementById('p-bikcad').value  = p.bike_cad || '';
   document.getElementById('p-garmin-email').value = p.garmin_email || '';
+  document.getElementById('p-z1').value = p.hr_zone1 || '';
+  document.getElementById('p-z2').value = p.hr_zone2 || '';
+  document.getElementById('p-z3').value = p.hr_zone3 || '';
+  document.getElementById('p-z4').value = p.hr_zone4 || '';
 }
 
 function updateAvatar() {
@@ -2876,6 +2900,10 @@ async function saveProfile() {
     run_pace: document.getElementById('p-runpace').value.trim()     || null,
     swim_css: document.getElementById('p-swimcss').value.trim()     || null,
     bike_cad: parseInt(document.getElementById('p-bikcad').value)   || null,
+    hr_zone1: parseInt(document.getElementById('p-z1').value)       || null,
+    hr_zone2: parseInt(document.getElementById('p-z2').value)       || null,
+    hr_zone3: parseInt(document.getElementById('p-z3').value)       || null,
+    hr_zone4: parseInt(document.getElementById('p-z4').value)       || null,
     updated_at: new Date().toISOString(),
   };
   const { error } = await sb.from('profiles').update(data).eq('id', USER.id);
