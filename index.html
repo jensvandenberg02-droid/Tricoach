@@ -2125,7 +2125,9 @@ function renderActivityDetail(act, laps, streams) {
     : '—';
   const elev = act.total_elevation_gain != null ? `${Math.round(act.total_elevation_gain)} m` : '—';
   const hr   = act.average_heartrate ? `${Math.round(act.average_heartrate)} bpm` : '—';
-  const maxHR = act.max_heartrate || 185;
+  // Gebruik profiel max HR voor correcte zonegrenzen — NIET act.max_heartrate
+  // (act.max_heartrate is de piek in DEZE activiteit, niet de fysiologische max)
+  const maxHR = PROFILE?.max_hr || 185;
   const cad  = act.average_cadence
     ? `${Math.round(act.average_cadence * (act.type === 'Swim' ? 1 : 2))}`
     : '—';
@@ -2187,34 +2189,37 @@ function renderActivityDetail(act, laps, streams) {
   if (streams.heartrate?.data?.length) {
     const hrData = streams.heartrate.data;
     const total  = hrData.length;
+    // Garmin/Firstbeat 5-zone model op basis van max HR uit profiel
+    const z1max = Math.round(maxHR * 0.60);
+    const z2max = Math.round(maxHR * 0.70);
+    const z3max = Math.round(maxHR * 0.80);
+    const z4max = Math.round(maxHR * 0.90);
     const zDefs = [
-      { name:'Zone 1', color:'#64748b', maxBpm: Math.round(maxHR*.60) },
-      { name:'Zone 2', color:'#3b82f6', maxBpm: Math.round(maxHR*.70) },
-      { name:'Zone 3', color:'#22c55e', maxBpm: Math.round(maxHR*.80) },
-      { name:'Zone 4', color:'#f59e0b', maxBpm: Math.round(maxHR*.90) },
-      { name:'Zone 5', color:'#ef4444', maxBpm: Infinity },
+      { name:'Zone 1', sub:'Herstel',    color:'#64748b', min: 0,      max: z1max },
+      { name:'Zone 2', sub:'Aëroob',     color:'#3b82f6', min: z1max+1, max: z2max },
+      { name:'Zone 3', sub:'Tempo',      color:'#22c55e', min: z2max+1, max: z3max },
+      { name:'Zone 4', sub:'Drempel',    color:'#f59e0b', min: z3max+1, max: z4max },
+      { name:'Zone 5', sub:'VO₂max',     color:'#ef4444', min: z4max+1, max: Infinity },
     ];
     const counts = [0,0,0,0,0];
     hrData.forEach(bpm => {
       for (let z = 0; z < zDefs.length; z++) {
-        if (bpm <= zDefs[z].maxBpm) { counts[z]++; break; }
-        if (z === zDefs.length - 1)   counts[z]++;
+        if (bpm <= zDefs[z].max) { counts[z]++; break; }
       }
     });
-    const prevBpm = [0, zDefs[0].maxBpm, zDefs[1].maxBpm, zDefs[2].maxBpm, zDefs[3].maxBpm];
     hrZonesHtml = `
       <div class="ad-section">
-        <div class="ad-section-title">Hartslagzones</div>
+        <div class="ad-section-title">Hartslagzones <span style="font-size:12px;color:var(--t3);font-weight:400">max ${maxHR} bpm</span></div>
         <div class="ad-hr-zones">
           ${zDefs.map((z, i) => {
             const pct     = total ? Math.round(counts[i] / total * 100) : 0;
             const secs    = total ? Math.round(counts[i] / total * act.moving_time) : 0;
             const timeStr = `${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')}`;
-            const bpmTxt  = i < 4 ? `${prevBpm[i]+1}-${z.maxBpm} bpm` : `${prevBpm[i]+1}+ bpm`;
+            const bpmTxt  = z.max === Infinity ? `${z.min}+ bpm` : `${z.min}–${z.max} bpm`;
             return `
               <div class="ad-hr-zone-row">
                 <div class="ad-hr-zone-info">
-                  <div class="ad-hr-zone-name" style="color:${z.color}">${z.name}</div>
+                  <div class="ad-hr-zone-name" style="color:${z.color}">${z.name} <span style="color:var(--t3);font-size:11px">${z.sub}</span></div>
                   <div class="ad-hr-zone-bpm">${bpmTxt}</div>
                 </div>
                 <div class="ad-hr-zone-bar-bg">
