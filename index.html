@@ -1493,8 +1493,6 @@ async function saveGarmin() {
   const pw    = document.getElementById('p-garmin-pw').value;
   if (!email || !pw) { toast('Vul e-mail en wachtwoord in.', 'error'); return; }
 
-  const isFirstTime = !PROFILE.garmin_email;
-
   const { error } = await sb.from('profiles').update({
     garmin_email:    email,
     garmin_password: pw,
@@ -1504,29 +1502,27 @@ async function saveGarmin() {
   PROFILE.garmin_email    = email;
   PROFILE.garmin_password = pw;
   document.getElementById('p-garmin-pw').value = '';
-  toast('Garmin credentials opgeslagen!', 'success');
+  toast('Garmin gekoppeld — data wordt opgehaald…', 'success');
 
-  // Eerste keer gekoppeld? Meteen synchroniseren.
-  if (isFirstTime) {
-    toast('Garmin voor het eerst gekoppeld — data wordt opgehaald…', 'success');
-    try {
-      const res  = await fetch('/api/garmin-sync-user', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` },
-      });
-      const data = await res.json();
-      if (data.ok) {
-        // Herlaad gezondheidsdata zodat de tab meteen toont
-        const healthRes = await sb.from('health_logs').select('*').eq('user_id', USER.id).order('date', { ascending: false }).limit(30);
-        HEALTH = healthRes.data || [];
-        renderHealthTab();
-        toast('Garmin data gesynchroniseerd!', 'success');
-      } else {
-        toast('Credentials opgeslagen maar sync mislukt: ' + (data.error || 'onbekende fout'), 'error');
-      }
-    } catch {
-      toast('Credentials opgeslagen maar sync mislukt (verbindingsfout).', 'error');
+  // Altijd meteen synchroniseren na opslaan
+  try {
+    const res  = await fetch('/api/garmin-sync-user', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` },
+    });
+    const data = await res.json();
+    console.log('Garmin sync resultaat:', data);
+    if (data.ok) {
+      const healthRes = await sb.from('health_logs').select('*').eq('user_id', USER.id).order('date', { ascending: false }).limit(30);
+      HEALTH = healthRes.data || [];
+      renderHealthTab();
+      toast('Garmin data gesynchroniseerd!', 'success');
+    } else {
+      toast('Sync mislukt: ' + (data.error || 'onbekende fout'), 'error');
     }
+  } catch (e) {
+    console.error('Garmin sync fout:', e);
+    toast('Sync mislukt (verbindingsfout).', 'error');
   }
 }
 
