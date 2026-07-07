@@ -2069,14 +2069,20 @@ async function openActivityDetail(activityId) {
   _adCharts = {};
 
   try {
-    const res = await fetch(`/api/strava-activity?id=${activityId}`, {
+    if (!activityId) throw new Error('Geen activiteit-ID beschikbaar.');
+    const res = await fetch(`/api/strava-activity?id=${encodeURIComponent(activityId)}`, {
       headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
     });
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`API niet beschikbaar (HTTP ${res.status}). Zorg dat api/strava-activity.js op GitHub staat en gedeployed is op Vercel.`);
+    }
     if (!data.ok) throw new Error(data.error || 'Laden mislukt');
     renderActivityDetail(data.activity, data.laps, data.streams);
   } catch (e) {
-    document.getElementById('ad-body').innerHTML = `<div class="empty">${e.message}</div>`;
+    document.getElementById('ad-body').innerHTML = `<div class="empty" style="padding:24px;line-height:1.6">${e.message}</div>`;
   }
 }
 
