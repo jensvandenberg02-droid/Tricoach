@@ -531,7 +531,13 @@ a { color: var(--accent); text-decoration: none; }
           <div class="form-group"><label>Zwem CSS (/100m)</label><input class="form-control" id="p-swimcss" placeholder="1:40"></div>
           <div class="form-group"><label>Fietskadens (rpm)</label><input class="form-control" id="p-bikcad" type="number" placeholder="85"></div>
         </div>
-        <button class="btn btn-primary" onclick="saveProfile()">Opslaan</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="saveProfile()">Opslaan</button>
+          <button class="btn btn-ghost" onclick="syncStravaPace()" style="display:flex;align-items:center;gap:6px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+            Laden van Strava
+          </button>
+        </div>
       </div>
 
       <div class="card" style="margin-bottom:16px">
@@ -570,7 +576,7 @@ a { color: var(--accent); text-decoration: none; }
       </div>
     </div>
     <div class="form-group"><label>Type</label>
-      <select class="form-control" id="ev-type">
+      <select class="form-control" id="ev-type" onchange="onEventTypeChange()">
         <option value="HIM">Half Ironman</option>
         <option value="IM">Full Ironman</option>
         <option value="olympic-tri">Olympic Triathlon</option>
@@ -710,6 +716,7 @@ async function bootApp() {
   generateAndRender();
   updateCountdown();
   setInterval(updateCountdown, 60000);
+  autoSyncIfNeeded();
 }
 
 function showLogin() {
@@ -1207,6 +1214,7 @@ function renderEventsTab() {
           ${(e.dist_swim || e.dist_bike || e.dist_run) ? `
           <div class="event-sub" style="margin-top:2px">
             ${e.dist_swim ? `🏊 ${e.dist_swim}km` : ''} ${e.dist_bike ? `🚴 ${e.dist_bike}km` : ''} ${e.dist_run ? `🏃 ${e.dist_run}km` : ''}
+            ${(() => { const t = estimateFinishTime(e); return t ? `<span style="color:var(--accent);font-weight:600;margin-left:6px">⏱ ~${t}</span>` : ''; })()}
           </div>` : ''}
         </div>
         <span class="priority-badge priority-${e.priority}">${e.priority}</span>
@@ -1365,7 +1373,7 @@ function renderHealthTab() {
   // Most recent entry in stat cards
   const latest = HEALTH[0];
   if (latest) {
-    document.getElementById('g-vo2max').textContent    = latest.vo2max != null ? latest.vo2max.toFixed(1) : '—';
+    document.getElementById('g-vo2max').textContent    = PROFILE?.vo2max != null ? Number(PROFILE.vo2max).toFixed(1) : '—';
     document.getElementById('g-battery').textContent   = latest.body_battery ?? '—';
     document.getElementById('g-sleep').textContent     = latest.sleep_hours ?? '—';
     document.getElementById('g-hrv').textContent       = latest.hrv ?? '—';
@@ -1553,6 +1561,140 @@ function toast(msg, type = 'success') {
   el.textContent = msg;
   document.getElementById('toast-container').appendChild(el);
   setTimeout(() => el.remove(), 3500);
+}
+
+// ── AUTO GARMIN SYNC ──────────────────────────────────────────
+async function autoSyncIfNeeded() {
+  if (!PROFILE?.garmin_email || !ACCESS_TOKEN) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const hasToday = HEALTH.some(h => h.date === today);
+  if (hasToday) return;
+  try {
+    const res = await fetch('/api/garmin-sync-user', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` },
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const r = await sb.from('health_logs').select('*').eq('user_id', USER.id).order('date', { ascending: false }).limit(30);
+      HEALTH = r.data || [];
+      renderHealthTab();
+    }
+  } catch (e) { console.warn('Auto-sync mislukt:', e); }
+}
+
+// ── EVENT TYPE PRESETS ────────────────────────────────────────
+const EVENT_PRESETS = {
+  'HIM':         { swim: 1.9,  bike: 90,  run: 21.1 },
+  'IM':          { swim: 3.8,  bike: 180, run: 42.2 },
+  'olympic-tri': { swim: 1.5,  bike: 40,  run: 10   },
+  'sprint-tri':  { swim: 0.75, bike: 20,  run: 5    },
+  '5K':          { swim: null, bike: null, run: 5    },
+  '10K':         { swim: null, bike: null, run: 10   },
+  'HM':          { swim: null, bike: null, run: 21.1 },
+  'marathon':    { swim: null, bike: null, run: 42.2 },
+  'duathlon':    { swim: null, bike: 40,  run: 10   },
+  'bike-race':   { swim: null, bike: 40,  run: null  },
+  'swim-race':   { swim: 1.5,  bike: null, run: null },
+};
+
+function onEventTypeChange() {
+  const type = document.getElementById('ev-type').value;
+  const preset = EVENT_PRESETS[type];
+  if (!preset) return;
+  document.getElementById('ev-swim').value = preset.swim ?? '';
+  document.getElementById('ev-bike').value = preset.bike ?? '';
+  document.getElementById('ev-run').value  = preset.run  ?? '';
+}
+
+// ── ESTIMATED FINISH TIME ─────────────────────────────────────
+function parsePaceSec(paceStr) {
+  if (!paceStr) return null;
+  const parts = paceStr.split(':');
+  if (parts.length !== 2) return null;
+  return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+}
+
+function formatDuration(sec) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h > 0) return `${h}u${String(m).padStart(2, '0')}`;
+  return `${m}min`;
+}
+
+function estimateFinishTime(ev) {
+  const p = PROFILE || {};
+  let total = 0;
+  let hasAny = false;
+
+  // Zwem: CSS per 100m × afstand in 100m-blokken
+  if (ev.dist_swim && p.swim_css) {
+    const cssSec = parsePaceSec(p.swim_css);
+    if (cssSec) { total += cssSec * ev.dist_swim * 10; hasAny = true; }
+  }
+
+  // Fiets: schatting op basis van FTP/kg of 28 km/u als fallback
+  if (ev.dist_bike) {
+    const speedKph = (p.ftp && p.weight_kg)
+      ? Math.min(42, 20 + (p.ftp / p.weight_kg) * 3.2)
+      : 28;
+    total += (ev.dist_bike / speedKph) * 3600;
+    hasAny = true;
+  }
+
+  // Loop: pace per km × afstand
+  if (ev.dist_run && p.run_pace) {
+    const paceSec = parsePaceSec(p.run_pace);
+    if (paceSec) { total += paceSec * ev.dist_run; hasAny = true; }
+  }
+
+  if (!hasAny) return null;
+
+  // Transities
+  if (ev.dist_swim && ev.dist_bike) total += 300; // T1
+  if (ev.dist_bike && ev.dist_run)  total += 180; // T2
+
+  return formatDuration(total);
+}
+
+// ── STRAVA PACE SYNC ──────────────────────────────────────────
+async function syncStravaPace() {
+  const { data: { session } } = await sb.auth.getSession();
+  const token = session?.provider_token;
+  if (!token) { toast('Log opnieuw in met Strava om pace te laden.', 'error'); return; }
+
+  toast('Strava activiteiten laden…', 'success');
+  try {
+    const res = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=50', {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    const acts = await res.json();
+    if (!Array.isArray(acts)) { toast('Fout bij laden Strava data.', 'error'); return; }
+
+    // Run pace: gemiddelde van 5 recentste runs > 2km
+    const runs = acts.filter(a => (a.type === 'Run' || a.sport_type === 'Run') && a.distance > 2000);
+    if (runs.length) {
+      const avg = runs.slice(0, 5).reduce((s, r) => s + (r.moving_time / r.distance * 1000), 0) / Math.min(runs.length, 5);
+      const m = Math.floor(avg / 60), s = Math.round(avg % 60);
+      document.getElementById('p-runpace').value = `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    // Zwem CSS: gemiddelde pace van 5 recentste zwemsets > 200m
+    const swims = acts.filter(a => (a.type === 'Swim' || a.sport_type === 'Swim') && a.distance > 200);
+    if (swims.length) {
+      const avg = swims.slice(0, 5).reduce((s, r) => s + (r.moving_time / r.distance * 100), 0) / Math.min(swims.length, 5);
+      const m = Math.floor(avg / 60), s = Math.round(avg % 60);
+      document.getElementById('p-swimcss').value = `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    if (!runs.length && !swims.length) {
+      toast('Geen loop of zwem activiteiten gevonden in Strava.', 'error');
+    } else {
+      toast('Pace geladen van Strava! Klik Opslaan om te bewaren.', 'success');
+    }
+  } catch (e) {
+    toast('Strava fout: ' + e.message, 'error');
+  }
 }
 </script>
 </body>
