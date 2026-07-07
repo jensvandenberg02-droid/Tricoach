@@ -50,30 +50,55 @@ export default async function handler(req, res) {
     });
     await client.login();
 
-    const today = new Date().toISOString().slice(0, 10);
+    const todayDate = new Date();
+    const today = todayDate.toISOString().slice(0, 10);
 
     const [sleepData, heartRateData, stepsData] = await Promise.allSettled([
-      client.getSleepData(today),
-      client.getHeartRate(today),
-      client.getSteps(today),
+      client.getSleepData(todayDate),
+      client.getHeartRate(todayDate),
+      client.getSteps(todayDate),
     ]);
 
     const sleep = sleepData.status     === 'fulfilled' ? sleepData.value     : null;
     const hr    = heartRateData.status === 'fulfilled' ? heartRateData.value : null;
     const steps = stepsData.status     === 'fulfilled' ? stepsData.value     : null;
 
+    // Log ruwe data zodat we de structuur kunnen zien
+    console.log('SLEEP RAW:', JSON.stringify(sleep));
+    console.log('HR RAW:', JSON.stringify(hr));
+    console.log('STEPS RAW:', JSON.stringify(steps));
+
+    // Slaapdata
+    const sleepSec = sleep?.dailySleepDTO?.sleepTimeSeconds
+                  ?? sleep?.sleepTimeSeconds
+                  ?? null;
+    const sleepScore = sleep?.dailySleepDTO?.sleepScores?.overall?.value
+                    ?? sleep?.averageSpO2Value
+                    ?? null;
+
+    // Stappen
+    let totalSteps = null;
+    if (Array.isArray(steps)) {
+      totalSteps = steps.reduce((s, d) => s + (d.steps || d.totalSteps || 0), 0) || null;
+    } else if (steps?.totalSteps != null) {
+      totalSteps = steps.totalSteps;
+    } else if (steps?.stepGoal != null) {
+      totalSteps = steps.stepGoal;
+    }
+
+    // HRV
+    const hrv = hr?.lastNight ?? hr?.hrvSummary?.lastNight ?? hr?.hrvValue ?? null;
+
     const healthLog = {
       user_id:      user.id,
       date:         today,
       readiness:    null,
       body_battery: null,
-      sleep_hours:  sleep?.dailySleepDTO?.sleepTimeSeconds
-                      ? Math.round(sleep.dailySleepDTO.sleepTimeSeconds / 360) / 10
-                      : null,
-      sleep_score:  sleep?.dailySleepDTO?.sleepScores?.overall?.value ?? null,
-      hrv:          hr?.hrvSummary?.lastNight ?? hr?.lastNight ?? null,
+      sleep_hours:  sleepSec ? Math.round(sleepSec / 360) / 10 : null,
+      sleep_score:  sleepScore,
+      hrv:          hrv ? Math.round(hrv) : null,
       stress_pct:   null,
-      steps:        Array.isArray(steps) ? steps.reduce((s, d) => s + (d.steps || 0), 0) || null : (steps?.totalSteps ?? null),
+      steps:        totalSteps,
       notes:        'Automatisch gesynchroniseerd via Garmin',
     };
 
