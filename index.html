@@ -611,6 +611,52 @@ a { color: var(--accent); text-decoration: none; }
   </div>
 </div>
 
+<!-- Result Modal -->
+<div class="modal-overlay" id="result-modal">
+  <div class="modal">
+    <h3 id="result-modal-title">Resultaat invoeren</h3>
+    <input type="hidden" id="res-event-id">
+    <input type="hidden" id="res-event-type">
+
+    <!-- Totaaltijd altijd zichtbaar -->
+    <div class="form-group">
+      <label>Totaaltijd (u:mm:ss)</label>
+      <input class="form-control" id="res-total" placeholder="4:32:15">
+    </div>
+
+    <!-- Triathlon splits -->
+    <div id="res-tri-fields" style="display:none">
+      <div class="form-row">
+        <div class="form-group"><label>🏊 Zwem</label><input class="form-control" id="res-swim" placeholder="32:10"></div>
+        <div class="form-group"><label>T1</label><input class="form-control" id="res-t1" placeholder="2:45"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>🚴 Fiets</label><input class="form-control" id="res-bike" placeholder="2:28:00"></div>
+        <div class="form-group"><label>T2</label><input class="form-control" id="res-t2" placeholder="1:30"></div>
+      </div>
+      <div class="form-group"><label>🏃 Loop</label><input class="form-control" id="res-run" placeholder="1:45:20"></div>
+    </div>
+
+    <!-- Duathlon splits -->
+    <div id="res-du-fields" style="display:none">
+      <div class="form-row">
+        <div class="form-group"><label>🏃 Loop 1</label><input class="form-control" id="res-run1" placeholder="22:10"></div>
+        <div class="form-group"><label>T1</label><input class="form-control" id="res-t1-du" placeholder="1:00"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>🚴 Fiets</label><input class="form-control" id="res-bike-du" placeholder="1:10:00"></div>
+        <div class="form-group"><label>T2</label><input class="form-control" id="res-t2-du" placeholder="0:45"></div>
+      </div>
+      <div class="form-group"><label>🏃 Loop 2</label><input class="form-control" id="res-run2" placeholder="24:30"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('result-modal')">Annuleer</button>
+      <button class="btn btn-primary" onclick="saveResult()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
 <!-- Injury Modal -->
 <div class="modal-overlay" id="injury-modal">
   <div class="modal">
@@ -1220,25 +1266,59 @@ function renderEventsTab() {
   list.innerHTML = visible.map(e => {
     const d = new Date(e.date);
     const isPast = d < now;
+    const res = e.results || {};
+    const hasResults = res.total;
+    const isTri = ['HIM','IM','olympic-tri','sprint-tri'].includes(e.type);
+    const isDu  = e.type === 'duathlon';
+
+    // Results display
+    let resultsHtml = '';
+    if (hasResults) {
+      if (isTri) {
+        resultsHtml = `<div class="event-sub" style="margin-top:4px;color:var(--accent)">
+          🏁 ${res.total}
+          ${res.swim ? `&nbsp;· 🏊 ${res.swim}` : ''}
+          ${res.t1   ? `&nbsp;· T1 ${res.t1}` : ''}
+          ${res.bike ? `&nbsp;· 🚴 ${res.bike}` : ''}
+          ${res.t2   ? `&nbsp;· T2 ${res.t2}` : ''}
+          ${res.run  ? `&nbsp;· 🏃 ${res.run}` : ''}
+        </div>`;
+      } else if (isDu) {
+        resultsHtml = `<div class="event-sub" style="margin-top:4px;color:var(--accent)">
+          🏁 ${res.total}
+          ${res.run1 ? `&nbsp;· 🏃 ${res.run1}` : ''}
+          ${res.t1   ? `&nbsp;· T1 ${res.t1}` : ''}
+          ${res.bike ? `&nbsp;· 🚴 ${res.bike}` : ''}
+          ${res.t2   ? `&nbsp;· T2 ${res.t2}` : ''}
+          ${res.run2 ? `&nbsp;· 🏃 ${res.run2}` : ''}
+        </div>`;
+      } else {
+        resultsHtml = `<div class="event-sub" style="margin-top:4px;color:var(--accent)">🏁 ${res.total}</div>`;
+      }
+    }
+
+    const eJson = JSON.stringify(e).split('"').join('&quot;');
     return `
-      <div class="event-row" style="${isPast ? 'opacity:0.45;' : ''}">
-        <div class="event-date-box" style="${isPast ? 'text-decoration:line-through' : ''}">
-          <div class="day">${String(d.getDate()).padStart(2,'0')}</div>
+      <div class="event-row" style="${isPast && !hasResults ? 'opacity:0.5;' : ''}">
+        <div class="event-date-box">
+          <div class="day" style="${isPast ? 'color:var(--t3)' : ''}">${String(d.getDate()).padStart(2,'0')}</div>
           <div class="mon">${monthShort(d)} '${String(d.getFullYear()).slice(2)}</div>
         </div>
         <div class="event-flag">${getFlag(e.country)}</div>
         <div class="event-info">
-          <div class="event-name">${e.name}</div>
+          <div class="event-name">${isPast && hasResults ? '✅ ' : ''}${e.name}</div>
           <div class="event-sub">${eventTypeLabel(e.type)} ${e.city ? '· ' + e.city : ''} ${e.country ? '· ' + e.country : ''}</div>
           ${(e.dist_swim || e.dist_bike || e.dist_run) ? `
           <div class="event-sub" style="margin-top:2px">
             ${e.dist_swim ? `🏊 ${e.dist_swim}km` : ''} ${e.dist_bike ? `🚴 ${e.dist_bike}km` : ''} ${e.dist_run ? `🏃 ${e.dist_run}km` : ''}
-            ${(() => { const t = estimateFinishTime(e); return t ? `<span style="color:var(--accent);font-weight:600;margin-left:6px">⏱ ~${t}</span>` : ''; })()}
+            ${!isPast ? (() => { const t = estimateFinishTime(e); return t ? `<span style="color:var(--accent);font-weight:600;margin-left:6px">⏱ ~${t}</span>` : ''; })() : ''}
           </div>` : ''}
+          ${resultsHtml}
         </div>
         <span class="priority-badge priority-${e.priority}">${e.priority}</span>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" onclick="openEventModal(${JSON.stringify(e).split('"').join('&quot;')})">✏️</button>
+          ${isPast ? `<button class="btn btn-ghost btn-sm" onclick="openResultModal(${eJson})" title="Tijden invoeren">🏁</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="openEventModal(${eJson})">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="deleteEvent('${e.id}')">✕</button>
         </div>
       </div>`;
@@ -1580,6 +1660,68 @@ function toast(msg, type = 'success') {
   el.textContent = msg;
   document.getElementById('toast-container').appendChild(el);
   setTimeout(() => el.remove(), 3500);
+}
+
+// ── EVENT RESULTS ─────────────────────────────────────────────
+function openResultModal(ev) {
+  const isTri = ['HIM','IM','olympic-tri','sprint-tri'].includes(ev.type);
+  const isDu  = ev.type === 'duathlon';
+  const res   = ev.results || {};
+
+  document.getElementById('result-modal-title').textContent = `Resultaat — ${ev.name}`;
+  document.getElementById('res-event-id').value   = ev.id;
+  document.getElementById('res-event-type').value = ev.type;
+  document.getElementById('res-total').value      = res.total || '';
+
+  document.getElementById('res-tri-fields').style.display = isTri ? '' : 'none';
+  document.getElementById('res-du-fields').style.display  = isDu  ? '' : 'none';
+
+  if (isTri) {
+    document.getElementById('res-swim').value = res.swim || '';
+    document.getElementById('res-t1').value   = res.t1   || '';
+    document.getElementById('res-bike').value = res.bike || '';
+    document.getElementById('res-t2').value   = res.t2   || '';
+    document.getElementById('res-run').value  = res.run  || '';
+  }
+  if (isDu) {
+    document.getElementById('res-run1').value   = res.run1 || '';
+    document.getElementById('res-t1-du').value  = res.t1   || '';
+    document.getElementById('res-bike-du').value= res.bike || '';
+    document.getElementById('res-t2-du').value  = res.t2   || '';
+    document.getElementById('res-run2').value   = res.run2 || '';
+  }
+  openModal('result-modal');
+}
+
+async function saveResult() {
+  const id   = document.getElementById('res-event-id').value;
+  const type = document.getElementById('res-event-type').value;
+  const isTri = ['HIM','IM','olympic-tri','sprint-tri'].includes(type);
+  const isDu  = type === 'duathlon';
+
+  const results = { total: document.getElementById('res-total').value.trim() || null };
+  if (isTri) {
+    results.swim = document.getElementById('res-swim').value.trim() || null;
+    results.t1   = document.getElementById('res-t1').value.trim()   || null;
+    results.bike = document.getElementById('res-bike').value.trim() || null;
+    results.t2   = document.getElementById('res-t2').value.trim()   || null;
+    results.run  = document.getElementById('res-run').value.trim()  || null;
+  }
+  if (isDu) {
+    results.run1 = document.getElementById('res-run1').value.trim()    || null;
+    results.t1   = document.getElementById('res-t1-du').value.trim()   || null;
+    results.bike = document.getElementById('res-bike-du').value.trim() || null;
+    results.t2   = document.getElementById('res-t2-du').value.trim()   || null;
+    results.run2 = document.getElementById('res-run2').value.trim()    || null;
+  }
+
+  const { error } = await sb.from('events').update({ results }).eq('id', id);
+  if (error) { toast('Fout: ' + error.message, 'error'); return; }
+
+  closeModal('result-modal');
+  await loadAll();
+  renderEventsTab();
+  toast('Resultaat opgeslagen!', 'success');
 }
 
 // ── AUTO GARMIN SYNC ──────────────────────────────────────────
