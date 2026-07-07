@@ -38,15 +38,74 @@
   --accent-muted: rgba(34,197,94,.2);
 }
 [data-theme="light"] {
-  --bg:    #f0f2f5;
-  --bg2:   #e4e8ef;
-  --bg3:   #dde2ec;
-  --card:  #ffffff;
-  --border:rgba(0,0,0,.1);
-  --t1:    #0d0f14;
-  --t2:    rgba(0,0,0,.7);
-  --t3:    rgba(0,0,0,.4);
+  --bg:          #f0f2f5;
+  --bg2:         #e4e8ef;
+  --bg3:         #dde2ec;
+  --card:        #ffffff;
+  --card2:       #f5f7fa;
+  --border:      rgba(0,0,0,.1);
+  --t1:          #0d0f14;
+  --t2:          rgba(0,0,0,.65);
+  --t3:          rgba(0,0,0,.38);
+  --shadow:      0 2px 16px rgba(0,0,0,.08);
+  --shadow-green:0 0 24px rgba(34,197,94,.08);
+  --accent-muted:rgba(34,197,94,.15);
 }
+
+/* ── LIGHT MODE OVERRIDES ────────────────────────────────── */
+[data-theme="light"] #topbar {
+  background: rgba(255,255,255,.92);
+  border-bottom: 1px solid rgba(0,0,0,.08);
+}
+[data-theme="light"] #topbar nav button { color: rgba(0,0,0,.45); }
+[data-theme="light"] #topbar nav button:hover { background: rgba(0,0,0,.05); color: var(--t1); }
+[data-theme="light"] #topbar .logo { color: var(--t1); }
+
+[data-theme="light"] #hero {
+  background:
+    linear-gradient(180deg, rgba(34,197,94,.07) 0%, transparent 55%),
+    linear-gradient(160deg, #e8f5ee 0%, #edf4f0 45%, var(--bg) 100%);
+  border-bottom: 1px solid rgba(34,197,94,.15);
+}
+[data-theme="light"] #hero::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36'%3E%3Crect width='18' height='18' fill='black' fill-opacity='.04'/%3E%3Crect x='18' y='18' width='18' height='18' fill='black' fill-opacity='.04'/%3E%3C/svg%3E");
+}
+[data-theme="light"] #hero-event h1 { color: #0d0f14; }
+[data-theme="light"] #hero-stats {
+  border-top: 1px solid rgba(0,0,0,.1);
+}
+[data-theme="light"] .hero-stat {
+  border-right: 1px solid rgba(0,0,0,.1);
+}
+
+[data-theme="light"] .cd-box {
+  background: rgba(255,255,255,.7);
+  border: 1px solid rgba(0,0,0,.1);
+}
+
+[data-theme="light"] body {
+  background-image: radial-gradient(circle, rgba(0,0,0,.04) 1px, transparent 1px);
+}
+
+[data-theme="light"] .week-card,
+[data-theme="light"] .session-item {
+  background: var(--card);
+}
+[data-theme="light"] .session-item.rest {
+  background: var(--bg2);
+}
+[data-theme="light"] .modal-overlay { background: rgba(0,0,0,.35); }
+[data-theme="light"] .modal { box-shadow: 0 8px 48px rgba(0,0,0,.15); }
+
+[data-theme="light"] .activity-detail { background: var(--bg); }
+[data-theme="light"] .ad-topbar {
+  background: rgba(255,255,255,.92);
+  border-bottom: 1px solid rgba(0,0,0,.08);
+}
+[data-theme="light"] .ad-splits-table thead th { color: rgba(0,0,0,.5); }
+[data-theme="light"] .ad-splits-table td { border-top-color: rgba(0,0,0,.08); }
+
+[data-theme="light"] .toast { box-shadow: 0 4px 24px rgba(0,0,0,.15); }
 
 /* ── RESET ──────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2309,6 +2368,9 @@ function renderActivityDetail(act, laps, streams) {
   `;
 
   // ── BUILD CHARTS ──────────────────────────────────────────
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  const gridColor = isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.07)';
+  const tickColor = isDark ? '#64748b' : '#94a3b8';
   const chartDefaults = {
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { enabled: false } },
@@ -2340,13 +2402,13 @@ function renderActivityDetail(act, laps, streams) {
         ...chartDefaults,
         scales: {
           x: {
-            ticks: { color:'#64748b', maxTicksLimit:6, callback: (_,i) => labels[i] ? labels[i]+' km' : '' },
-            grid:  { color:'rgba(255,255,255,.05)' },
+            ticks: { color: tickColor, maxTicksLimit:6, callback: (_,i) => labels[i] ? labels[i]+' km' : '' },
+            grid:  { color: gridColor },
           },
           y: {
             reverse: true,
             ticks: {
-              color: '#64748b',
+              color: tickColor,
               callback: v => { const m=Math.floor(v); const s=Math.round((v-m)*60); return `${m}:${String(s).padStart(2,'0')}`; },
             },
             grid: { color:'rgba(255,255,255,.05)' },
@@ -2380,12 +2442,12 @@ function renderActivityDetail(act, laps, streams) {
         ...chartDefaults,
         scales: {
           x: {
-            ticks: { color:'#64748b', maxTicksLimit:6, callback: (_,i) => labels[i] ? labels[i]+' km' : '' },
-            grid:  { color:'rgba(255,255,255,.05)' },
+            ticks: { color: tickColor, maxTicksLimit:6, callback: (_,i) => labels[i] ? labels[i]+' km' : '' },
+            grid:  { color: gridColor },
           },
           y: {
-            ticks: { color:'#64748b', callback: v => v+' m' },
-            grid:  { color:'rgba(255,255,255,.05)' },
+            ticks: { color: tickColor, callback: v => v+' m' },
+            grid:  { color: gridColor },
           },
         },
       },
@@ -2675,7 +2737,9 @@ function renderHealthCharts() {
   const PURPLE  = '#8b5cf6';
   const AMBER   = '#f59e0b';
   const CYAN    = '#06b6d4';
-  const gridColor = 'rgba(255,255,255,0.06)';
+  const isLightMode = document.documentElement.getAttribute('data-theme') === 'light';
+  const gridColor = isLightMode ? 'rgba(0,0,0,.07)' : 'rgba(255,255,255,0.06)';
+  const tickClr   = isLightMode ? '#94a3b8' : '#64748b';
 
   const defaults = {
     responsive: true, maintainAspectRatio: false,
@@ -2725,8 +2789,8 @@ function renderHealthCharts() {
       },
       options: { ...defaults,
         scales: {
-          x: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { size: 10 } } },
-          y: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { size: 10 } },
+          x: { grid: { color: gridColor }, ticks: { color: tickClr, font: { size: 10 } } },
+          y: { grid: { color: gridColor }, ticks: { color: tickClr, font: { size: 10 } },
                beginAtZero: true }
         }
       }
@@ -2757,7 +2821,7 @@ function renderHealthCharts() {
           labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 10, padding: 14 }
         }},
         scales: {
-          x: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 8 } },
+          x: { grid: { color: gridColor }, ticks: { color: tickClr, font: { size: 10 }, maxTicksLimit: 8 } },
           yHrv: { position: 'left', grid: { color: gridColor },
             ticks: { color: GREEN, font: { size: 10 } }, title: { display: false } },
           ySleep: { position: 'right', grid: { drawOnChartArea: false },
@@ -2798,8 +2862,8 @@ function renderHealthCharts() {
       },
       options: { ...defaults,
         scales: {
-          x: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 8 } },
-          y: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { size: 10 } },
+          x: { grid: { color: gridColor }, ticks: { color: tickClr, font: { size: 10 }, maxTicksLimit: 8 } },
+          y: { grid: { color: gridColor }, ticks: { color: tickClr, font: { size: 10 } },
                min: 0, max: 100,
                title: { display: true, text: 'Index (0–100)', color: '#475569', font: { size: 10 } } }
         }
