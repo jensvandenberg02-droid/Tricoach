@@ -19,7 +19,7 @@ export default async function handler(req, res) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('strava_access_token')
+    .select('strava_access_token, strava_refresh_token, strava_token_expires_at')
     .eq('id', user.id)
     .single();
 
@@ -27,8 +27,34 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Geen Strava account gekoppeld' });
   }
 
-  const at = profile.strava_access_token;
-  const h  = { Authorization: `Bearer ${at}` };
+  // Ververs token als verlopen (zelfde logica als strava-sync.js)
+  let accessToken = profile.strava_access_token;
+  if (Date.now() / 1000 > (profile.strava_token_expires_at - 300)) {
+    try {
+      const refreshRes = await fetch('https://www.strava.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id:     process.env.STRAVA_CLIENT_ID,
+          client_secret: process.env.STRAVA_CLIENT_SECRET,
+          grant_type:    'refresh_token',
+          refresh_token: profile.strava_refresh_token,
+        }),
+      });
+      const refreshed = await refreshRes.json();
+      if (!refreshRes.ok) throw new Error(refreshed.message);
+      accessToken = refreshed.access_token;
+      await supabase.from('profiles').update({
+        strava_access_token:     refreshed.access_token,
+        strava_refresh_token:    refreshed.refresh_token,
+        strava_token_expires_at: refreshed.expires_at,
+      }).eq('id', user.id);
+    } catch (e) {
+      return res.status(500).json({ error: 'Token refresh mislukt: ' + e.message });
+    }
+  }
+
+  const h = { Authorization: `Bearer ${accessToken}` };
 
   // Haal activiteitsdetails, rondes en streams parallel op
   const [actRes, lapsRes, streamsRes] = await Promise.all([
