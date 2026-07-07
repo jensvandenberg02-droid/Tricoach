@@ -126,27 +126,35 @@ export default async function handler(req, res) {
 
   await supabase.from('profiles').update(updates).eq('id', user.id);
 
-  // Stuur activiteiten terug als JSON (app kan ze renderen)
-  const simplified = activities.slice(0, 30).map(a => ({
+  // Sla activiteiten op in Supabase zodat ze bij volgende login al beschikbaar zijn
+  const simplified = activities.slice(0, 50).map(a => ({
     id:       a.id,
+    user_id:  user.id,
     name:     a.name,
     type:     a.type,
     date:     a.start_date_local?.slice(0, 10),
     distance: Math.round(a.distance),
     duration: a.moving_time,
-    pace:     a.average_speed
+    pace:     a.average_speed && a.average_speed > 0
       ? `${Math.floor(1000 / a.average_speed / 60)}:${String(Math.round((1000 / a.average_speed) % 60)).padStart(2, '0')}`
       : null,
     watts:    a.average_watts || null,
-    hr:       a.average_heartrate || null,
-    kudos:    a.kudos_count,
+    hr:       a.average_heartrate ? Math.round(a.average_heartrate) : null,
+    kudos:    a.kudos_count || 0,
     map:      a.map?.summary_polyline || null,
   }));
 
+  // Upsert op basis van id (Strava activiteit-ID is uniek)
+  if (simplified.length) {
+    await supabase
+      .from('activities')
+      .upsert(simplified, { onConflict: 'id' });
+  }
+
   return res.status(200).json({
-    ok:           true,
-    stats:        updates,
-    activities:   simplified,
+    ok:            true,
+    stats:         updates,
+    activities:    simplified,
     activityCount: activities.length,
   });
 }
