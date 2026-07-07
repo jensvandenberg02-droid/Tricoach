@@ -61,18 +61,32 @@ export default async function handler(req, res) {
       const hr    = heartRateData.status === 'fulfilled' ? heartRateData.value : null;
       const steps = stepsData.status     === 'fulfilled' ? stepsData.value     : null;
 
+      // Body battery: laatste waarde uit de slaap array
+      const bbArray = sleep?.sleepBodyBattery;
+      const bodyBattery = Array.isArray(bbArray) && bbArray.length
+        ? bbArray[bbArray.length - 1]?.value ?? null
+        : null;
+
+      // Stappen
+      let totalSteps = null;
+      if (Array.isArray(steps)) {
+        totalSteps = steps.reduce((s, d) => s + (d.steps || d.totalSteps || 0), 0) || null;
+      } else if (steps?.totalSteps != null) {
+        totalSteps = steps.totalSteps;
+      }
+
       const healthLog = {
         user_id:      user.id,
         date:         today,
         readiness:    null,
-        body_battery: null,
+        body_battery: bodyBattery,
         sleep_hours:  sleep?.dailySleepDTO?.sleepTimeSeconds
                         ? Math.round(sleep.dailySleepDTO.sleepTimeSeconds / 360) / 10
                         : null,
         sleep_score:  sleep?.dailySleepDTO?.sleepScores?.overall?.value ?? null,
-        hrv:          hr?.hrvSummary?.lastNight ?? hr?.lastNight ?? null,
+        hrv:          sleep?.avgOvernightHrv ?? null,
         stress_pct:   null,
-        steps:        Array.isArray(steps) ? steps.reduce((s, d) => s + (d.steps || 0), 0) || null : (steps?.totalSteps ?? null),
+        steps:        totalSteps,
         notes:        'Automatisch gesynchroniseerd via Garmin',
       };
 
