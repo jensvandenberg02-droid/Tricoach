@@ -7,29 +7,34 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;800;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
 /* ── TOKENS ─────────────────────────────────────────────── */
 :root {
-  --bg:       #0d0f14;
-  --bg2:      #13161e;
-  --bg3:      #1a1e2a;
-  --card:     #1e2330;
-  --border:   rgba(255,255,255,.08);
-  --accent:   #fc4c02;
-  --accent2:  #e63900;
-  --blue:     #4c9fff;
-  --green:    #2ecc71;
-  --yellow:   #f1c40f;
-  --red:      #e74c3c;
-  --purple:   #9b59b6;
-  --t1:       #ffffff;
-  --t2:       rgba(255,255,255,.7);
-  --t3:       rgba(255,255,255,.4);
+  --bg:       #080c10;
+  --bg2:      #0e1318;
+  --bg3:      #141b22;
+  --card:     #111820;
+  --card2:    #17202a;
+  --border:   rgba(255,255,255,.07);
+  --accent:   #22c55e;
+  --accent2:  #16a34a;
+  --accent-glow: rgba(34,197,94,.18);
+  --blue:     #60a5fa;
+  --green:    #22c55e;
+  --yellow:   #fbbf24;
+  --red:      #f87171;
+  --purple:   #a78bfa;
+  --orange:   #fb923c;
+  --t1:       #f1f5f9;
+  --t2:       rgba(241,245,249,.6);
+  --t3:       rgba(241,245,249,.32);
   --font-c:   'Barlow Condensed', sans-serif;
   --font:     'Barlow', sans-serif;
-  --r:        12px;
-  --r-sm:     8px;
-  --shadow:   0 4px 24px rgba(0,0,0,.4);
+  --r:        16px;
+  --r-sm:     10px;
+  --shadow:   0 4px 32px rgba(0,0,0,.5);
+  --shadow-green: 0 0 24px rgba(34,197,94,.12);
 }
 [data-theme="light"] {
   --bg:    #f0f2f5;
@@ -53,8 +58,8 @@ a { color: var(--accent); text-decoration: none; }
 #login-screen {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   min-height: 100vh; gap: 24px; padding: 32px;
-  background: radial-gradient(ellipse at 60% 20%, rgba(252,76,2,.15) 0%, transparent 60%),
-              radial-gradient(ellipse at 20% 80%, rgba(76,159,255,.1) 0%, transparent 50%),
+  background: radial-gradient(ellipse at 60% 20%, rgba(34,197,94,.12) 0%, transparent 60%),
+              radial-gradient(ellipse at 20% 80%, rgba(96,165,250,.08) 0%, transparent 50%),
               var(--bg);
 }
 #login-screen .logo { font-family: var(--font-c); font-size: 56px; font-weight: 900; letter-spacing: -1px; }
@@ -62,11 +67,11 @@ a { color: var(--accent); text-decoration: none; }
 #login-screen p { color: var(--t2); font-size: 17px; text-align: center; max-width: 380px; line-height: 1.6; }
 .btn-strava {
   display: flex; align-items: center; gap: 12px;
-  background: var(--accent); color: #fff;
+  background: linear-gradient(135deg, #fc4c02, #e63900); color: #fff;
   padding: 14px 28px; border-radius: 50px;
   font-family: var(--font-c); font-size: 20px; font-weight: 700; letter-spacing: .5px;
   transition: transform .15s, box-shadow .15s;
-  box-shadow: 0 4px 24px rgba(252,76,2,.4);
+  box-shadow: 0 4px 24px rgba(252,76,2,.35);
 }
 .btn-strava:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(252,76,2,.5); }
 .btn-strava svg { width: 28px; height: 28px; fill: #fff; }
@@ -111,9 +116,15 @@ a { color: var(--accent); text-decoration: none; }
 /* ── HERO ───────────────────────────────────────────────── */
 #hero {
   position: relative; overflow: hidden;
-  background: linear-gradient(135deg, var(--bg2) 0%, var(--bg) 100%);
-  border-bottom: 1px solid var(--border);
+  background: linear-gradient(160deg, #0e1f15 0%, #0a1018 50%, var(--bg) 100%);
+  border-bottom: 1px solid rgba(34,197,94,.12);
   padding: 40px 24px 32px;
+}
+#hero::before {
+  content:''; position:absolute; top:-80px; right:-80px;
+  width:320px; height:320px; border-radius:50%;
+  background: radial-gradient(circle, rgba(34,197,94,.12) 0%, transparent 70%);
+  pointer-events:none;
 }
 #hero-flag {
   position: absolute; right: -20px; top: 50%; transform: translateY(-50%);
@@ -142,14 +153,17 @@ a { color: var(--accent); text-decoration: none; }
 
 /* ── CARDS ──────────────────────────────────────────────── */
 .card {
-  background: var(--card); border: 1px solid var(--border);
+  background: linear-gradient(160deg, var(--card2) 0%, var(--card) 100%);
+  border: 1px solid var(--border);
   border-radius: var(--r); padding: 20px;
   box-shadow: var(--shadow);
+  transition: border-color .2s, box-shadow .2s;
 }
+.card:hover { border-color: rgba(34,197,94,.15); box-shadow: var(--shadow), var(--shadow-green); }
 .card-title {
-  font-family: var(--font-c); font-size: 13px; font-weight: 700;
+  font-family: var(--font-c); font-size: 12px; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase; color: var(--accent);
-  margin-bottom: 16px;
+  margin-bottom: 16px; opacity:.85;
 }
 .section-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -195,7 +209,7 @@ a { color: var(--accent); text-decoration: none; }
   border-radius: var(--r); overflow: hidden;
   transition: border-color .2s;
 }
-.week-card:hover { border-color: rgba(252,76,2,.3); }
+.week-card:hover { border-color: rgba(34,197,94,.25); }
 .week-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 12px 16px; background: var(--bg3);
@@ -223,7 +237,7 @@ a { color: var(--accent); text-decoration: none; }
   border:1px solid var(--border); background:var(--bg3); color:var(--t2);
   cursor:pointer; transition:all .15s; user-select:none;
 }
-.avail-btn.on { border-color:var(--accent); background:rgba(252,76,2,.15); color:var(--accent); }
+.avail-btn.on { border-color:var(--accent); background:rgba(34,197,94,.15); color:var(--accent); }
 
 /* ── WEEKLIJST CHECKLIST ────────────────────────────────── */
 .week-task-card {
@@ -344,13 +358,56 @@ a { color: var(--accent); text-decoration: none; }
 .injury-sub  { font-size: 13px; color: var(--t2); margin-top: 2px; }
 
 /* ── HEALTH ─────────────────────────────────────────────── */
-#health-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+#health-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
 .health-stat-card {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--r); padding: 16px; text-align: center;
+  background: linear-gradient(160deg, var(--card2), var(--card));
+  border: 1px solid var(--border);
+  border-radius: var(--r); padding: 18px 14px;
+  position: relative; overflow: hidden;
+  transition: border-color .2s, transform .15s;
 }
-.health-stat-card .v { font-family: var(--font-c); font-size: 36px; font-weight: 800; color: var(--t1); }
-.health-stat-card .l { font-size: 12px; color: var(--t3); text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+.health-stat-card:hover { border-color: rgba(34,197,94,.2); transform: translateY(-1px); }
+.health-stat-card::after {
+  content:''; position:absolute; bottom:0; left:0; right:0; height:2px;
+  background: linear-gradient(90deg, transparent, var(--card-accent, var(--accent)), transparent);
+  opacity:.4;
+}
+.health-stat-card .icon { font-size:18px; margin-bottom:8px; }
+.health-stat-card .v {
+  font-family: var(--font-c); font-size: 34px; font-weight: 800;
+  color: var(--t1); line-height:1;
+}
+.health-stat-card .v-unit { font-size:16px; font-weight:500; color:var(--t2); margin-left:2px; }
+.health-stat-card .l { font-size: 11px; color: var(--t3); text-transform: uppercase; letter-spacing: 1.5px; margin-top: 5px; }
+.health-stat-card .trend {
+  font-size:11px; font-weight:700; padding:2px 6px; border-radius:20px; margin-top:6px;
+  display:inline-block;
+}
+.trend-up   { background:rgba(34,197,94,.15); color:#22c55e; }
+.trend-down { background:rgba(248,113,113,.15); color:#f87171; }
+.trend-same { background:rgba(241,245,249,.08); color:var(--t3); }
+
+/* ── CHARTS ──────────────────────────────────────────────── */
+.charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+.chart-card {
+  background: linear-gradient(160deg, var(--card2), var(--card));
+  border:1px solid var(--border); border-radius:var(--r); padding:18px;
+  box-shadow: var(--shadow);
+}
+.chart-card.wide { grid-column: span 2; }
+.chart-title {
+  font-family:var(--font-c); font-size:12px; font-weight:700;
+  letter-spacing:2px; text-transform:uppercase; color:var(--accent);
+  margin-bottom:4px; opacity:.85;
+}
+.chart-subtitle { font-size:12px; color:var(--t3); margin-bottom:14px; }
+.chart-wrap { position:relative; }
+.chart-center-label {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  text-align:center; pointer-events:none;
+}
+.chart-center-label .big { font-family:var(--font-c); font-size:32px; font-weight:800; color:var(--t1); line-height:1; }
+.chart-center-label .small { font-size:11px; color:var(--t3); text-transform:uppercase; letter-spacing:1px; }
 
 /* ── PROFILE ─────────────────────────────────────────────── */
 #profile-avatar-row {
@@ -418,7 +475,9 @@ a { color: var(--accent); text-decoration: none; }
   #topbar nav button { padding: 6px 8px; font-size: 12px; }
   #countdown { flex-wrap: wrap; gap: 8px; }
   .form-row, .form-row-3 { grid-template-columns: 1fr; }
-  #health-grid { grid-template-columns: 1fr; }
+  #health-grid { grid-template-columns: repeat(2, 1fr); }
+  .charts-grid { grid-template-columns: 1fr; }
+  .chart-card.wide { grid-column: span 1; }
 }
 </style>
 </head>
@@ -535,13 +594,81 @@ a { color: var(--accent); text-decoration: none; }
         <div class="section-title">Gezondheidsdata</div>
         <button class="btn btn-primary btn-sm" onclick="openHealthModal()">+ Invoeren</button>
       </div>
-      <div id="health-grid" style="margin-bottom:16px">
-        <div class="health-stat-card"><div class="v" id="g-vo2max">—</div><div class="l">VO2max</div></div>
-        <div class="health-stat-card"><div class="v" id="g-battery">—</div><div class="l">Body Battery</div></div>
-        <div class="health-stat-card"><div class="v" id="g-sleep">—</div><div class="l">Slaap (uur)</div></div>
-        <div class="health-stat-card"><div class="v" id="g-hrv">—</div><div class="l">HRV</div></div>
-        <div class="health-stat-card"><div class="v" id="g-steps">—</div><div class="l">Stappen</div></div>
+      <div id="health-grid">
+        <div class="health-stat-card" style="--card-accent:#22c55e">
+          <div class="icon">🫁</div>
+          <div class="v" id="g-vo2max">—</div>
+          <div class="l">VO₂max</div>
+          <div id="trend-vo2max"></div>
+        </div>
+        <div class="health-stat-card" style="--card-accent:#3b82f6">
+          <div class="icon">🔋</div>
+          <div class="v" id="g-battery">—</div>
+          <div class="l">Body Battery</div>
+          <div id="trend-battery"></div>
+        </div>
+        <div class="health-stat-card" style="--card-accent:#8b5cf6">
+          <div class="icon">😴</div>
+          <div class="v" id="g-sleep">—</div>
+          <div class="l">Slaap (uur)</div>
+          <div id="trend-sleep"></div>
+        </div>
+        <div class="health-stat-card" style="--card-accent:#f59e0b">
+          <div class="icon">💓</div>
+          <div class="v" id="g-hrv">—</div>
+          <div class="l">HRV</div>
+          <div id="trend-hrv"></div>
+        </div>
+        <div class="health-stat-card" style="--card-accent:#06b6d4">
+          <div class="icon">👟</div>
+          <div class="v" id="g-steps">—</div>
+          <div class="l">Stappen</div>
+          <div id="trend-steps"></div>
+        </div>
+        <div class="health-stat-card" style="--card-accent:#ec4899">
+          <div class="icon">😌</div>
+          <div class="v" id="g-sleep-score">—</div>
+          <div class="l">Slaapscore</div>
+          <div id="trend-sleep-score"></div>
+        </div>
       </div>
+
+      <!-- CHARTS -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-title">Body Battery</div>
+          <div class="chart-subtitle">Ochtendwaarde bij ontwaken</div>
+          <div class="chart-wrap" style="height:130px">
+            <canvas id="chart-battery"></canvas>
+            <div class="chart-center-label">
+              <div class="big" id="chart-battery-val">—</div>
+              <div class="small">/ 100</div>
+            </div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Stappen — 7 dagen</div>
+          <div class="chart-subtitle">Dagelijkse beweging</div>
+          <div class="chart-wrap" style="height:130px">
+            <canvas id="chart-steps"></canvas>
+          </div>
+        </div>
+        <div class="chart-card wide">
+          <div class="chart-title">HRV &amp; Slaap — 30 dagen</div>
+          <div class="chart-subtitle">Herstel &amp; slaapkwaliteit trend</div>
+          <div class="chart-wrap" style="height:160px">
+            <canvas id="chart-hrv-sleep"></canvas>
+          </div>
+        </div>
+        <div class="chart-card wide">
+          <div class="chart-title">Conditie-evolutie</div>
+          <div class="chart-subtitle">Body Battery + HRV gecombineerd als fitnessindex</div>
+          <div class="chart-wrap" style="height:160px">
+            <canvas id="chart-fitness"></canvas>
+          </div>
+        </div>
+      </div>
+
       <div id="health-log-list"></div>
     </div>
 
@@ -1542,16 +1669,43 @@ async function deleteInjury(id) {
 }
 
 // ── HEALTH ────────────────────────────────────────────────────
+let _healthChartInstances = {};
+
+function trendBadge(curr, prev, higherIsBetter = true, unit = '') {
+  if (curr == null || prev == null) return '';
+  const diff = curr - prev;
+  if (Math.abs(diff) < 0.01) return `<span class="trend trend-same">= ${unit}</span>`;
+  const up = diff > 0;
+  const good = higherIsBetter ? up : !up;
+  const cls = good ? 'trend-up' : 'trend-down';
+  const arrow = up ? '↑' : '↓';
+  const abs = Math.abs(diff);
+  const display = abs < 10 ? abs.toFixed(1) : Math.round(abs);
+  return `<span class="trend ${cls}">${arrow} ${display}${unit}</span>`;
+}
+
 function renderHealthTab() {
-  // Most recent entry in stat cards
   const latest = HEALTH[0];
-  if (latest) {
-    document.getElementById('g-vo2max').textContent    = PROFILE?.vo2max != null ? Number(PROFILE.vo2max).toFixed(1) : '—';
-    document.getElementById('g-battery').textContent   = latest.body_battery ?? '—';
-    document.getElementById('g-sleep').textContent     = latest.sleep_hours ?? '—';
-    document.getElementById('g-hrv').textContent       = latest.hrv ?? '—';
-    document.getElementById('g-steps').textContent     = latest.steps ? latest.steps.toLocaleString('nl') : '—';
-  }
+  const prev   = HEALTH[1];
+
+  // Stat cards
+  document.getElementById('g-vo2max').textContent       = PROFILE?.vo2max != null ? Number(PROFILE.vo2max).toFixed(1) : '—';
+  document.getElementById('g-battery').textContent      = latest?.body_battery ?? '—';
+  document.getElementById('g-sleep').textContent        = latest?.sleep_hours ?? '—';
+  document.getElementById('g-hrv').textContent          = latest?.hrv ?? '—';
+  document.getElementById('g-steps').textContent        = latest?.steps ? latest.steps.toLocaleString('nl-BE') : '—';
+  document.getElementById('g-sleep-score').textContent  = latest?.sleep_score ?? '—';
+
+  // Trend badges
+  document.getElementById('trend-vo2max').innerHTML      = '';
+  document.getElementById('trend-battery').innerHTML     = trendBadge(latest?.body_battery, prev?.body_battery, true);
+  document.getElementById('trend-sleep').innerHTML       = trendBadge(latest?.sleep_hours, prev?.sleep_hours, true, 'h');
+  document.getElementById('trend-hrv').innerHTML         = trendBadge(latest?.hrv, prev?.hrv, true);
+  document.getElementById('trend-steps').innerHTML       = trendBadge(latest?.steps, prev?.steps, true);
+  document.getElementById('trend-sleep-score').innerHTML = trendBadge(latest?.sleep_score, prev?.sleep_score, true);
+
+  // Charts
+  renderHealthCharts();
 
   // Log list
   const logEl = document.getElementById('health-log-list');
@@ -1560,10 +1714,149 @@ function renderHealthTab() {
     <div style="display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:6px">
       <strong style="font-family:var(--font-c);font-size:16px;min-width:90px">${h.date}</strong>
       <span style="font-size:13px;color:var(--t2)">
-        ${h.vo2max != null ? `🫁 VO2 ${h.vo2max.toFixed(1)}` : ''} ${h.body_battery != null ? `🔋 ${h.body_battery}` : ''} ${h.sleep_hours != null ? `😴 ${h.sleep_hours}h` : ''} ${h.hrv != null ? `💓 HRV ${h.hrv}` : ''} ${h.steps != null ? `👟 ${h.steps.toLocaleString('nl')}` : ''}
+        ${h.vo2max != null ? `🫁 VO2 ${h.vo2max.toFixed(1)}` : ''} ${h.body_battery != null ? `🔋 ${h.body_battery}` : ''} ${h.sleep_hours != null ? `😴 ${h.sleep_hours}h` : ''} ${h.hrv != null ? `💓 HRV ${h.hrv}` : ''} ${h.steps != null ? `👟 ${h.steps.toLocaleString('nl-BE')}` : ''}
       </span>
       <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="deleteHealth('${h.id}')">✕</button>
     </div>`).join('');
+}
+
+function renderHealthCharts() {
+  const GREEN   = '#22c55e';
+  const BLUE    = '#3b82f6';
+  const PURPLE  = '#8b5cf6';
+  const AMBER   = '#f59e0b';
+  const CYAN    = '#06b6d4';
+  const gridColor = 'rgba(255,255,255,0.06)';
+
+  const defaults = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: {
+      backgroundColor: '#17202a', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
+      titleColor: '#e2e8f0', bodyColor: '#94a3b8', cornerRadius: 8, padding: 10
+    }},
+  };
+
+  function destroyChart(id) {
+    if (_healthChartInstances[id]) { _healthChartInstances[id].destroy(); delete _healthChartInstances[id]; }
+  }
+
+  // ── 1. Body Battery Donut ──────────────────────────────────
+  destroyChart('battery');
+  const battVal = HEALTH[0]?.body_battery ?? 0;
+  document.getElementById('chart-battery-val').textContent = battVal || '—';
+  const battCtx = document.getElementById('chart-battery')?.getContext('2d');
+  if (battCtx) {
+    const pct = Math.min(100, Math.max(0, battVal));
+    const battColor = pct >= 70 ? GREEN : pct >= 40 ? AMBER : '#f87171';
+    _healthChartInstances['battery'] = new Chart(battCtx, {
+      type: 'doughnut',
+      data: {
+        datasets: [{ data: [pct, 100 - pct],
+          backgroundColor: [battColor, 'rgba(255,255,255,.06)'],
+          borderWidth: 0, borderRadius: 6, cutout: '76%' }]
+      },
+      options: { ...defaults, plugins: { ...defaults.plugins, tooltip: { enabled: false } } }
+    });
+  }
+
+  // ── 2. Steps Bar — last 7 days ─────────────────────────────
+  destroyChart('steps');
+  const stepsCtx = document.getElementById('chart-steps')?.getContext('2d');
+  if (stepsCtx) {
+    const last7 = HEALTH.slice(0, 7).reverse();
+    _healthChartInstances['steps'] = new Chart(stepsCtx, {
+      type: 'bar',
+      data: {
+        labels: last7.map(h => h.date.slice(5)),
+        datasets: [{
+          data: last7.map(h => h.steps ?? 0),
+          backgroundColor: last7.map(h => (h.steps ?? 0) >= 8000 ? 'rgba(34,197,94,.7)' : 'rgba(34,197,94,.3)'),
+          borderRadius: 4, borderSkipped: false
+        }]
+      },
+      options: { ...defaults,
+        scales: {
+          x: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { size: 10 } } },
+          y: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { size: 10 } },
+               beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  // ── 3. HRV + Sleep dual line — last 30 days ───────────────
+  destroyChart('hrv-sleep');
+  const hsTmCtx = document.getElementById('chart-hrv-sleep')?.getContext('2d');
+  if (hsTmCtx) {
+    const data30 = HEALTH.slice(0, 30).reverse();
+    _healthChartInstances['hrv-sleep'] = new Chart(hsTmCtx, {
+      type: 'line',
+      data: {
+        labels: data30.map(h => h.date.slice(5)),
+        datasets: [
+          { label: 'HRV', data: data30.map(h => h.hrv ?? null), spanGaps: true,
+            borderColor: GREEN, backgroundColor: 'rgba(34,197,94,.08)',
+            borderWidth: 2, pointRadius: 2, fill: true, tension: 0.4, yAxisID: 'yHrv' },
+          { label: 'Slaap (h)', data: data30.map(h => h.sleep_hours ?? null), spanGaps: true,
+            borderColor: PURPLE, backgroundColor: 'rgba(139,92,246,.08)',
+            borderWidth: 2, pointRadius: 2, fill: true, tension: 0.4, yAxisID: 'ySleep' }
+        ]
+      },
+      options: { ...defaults,
+        plugins: { ...defaults.plugins, legend: {
+          display: true,
+          labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 10, padding: 14 }
+        }},
+        scales: {
+          x: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 8 } },
+          yHrv: { position: 'left', grid: { color: gridColor },
+            ticks: { color: GREEN, font: { size: 10 } }, title: { display: false } },
+          ySleep: { position: 'right', grid: { drawOnChartArea: false },
+            ticks: { color: PURPLE, font: { size: 10 } }, min: 0, max: 12 }
+        }
+      }
+    });
+  }
+
+  // ── 4. Fitness evolution — rolling body battery + HRV index ─
+  destroyChart('fitness');
+  const fitCtx = document.getElementById('chart-fitness')?.getContext('2d');
+  if (fitCtx) {
+    const fitData = HEALTH.slice(0, 30).reverse();
+    // simple composite: (battery/100 * 60 + hrv/200 * 40) → 0-100 index
+    const fitnessIdx = fitData.map(h => {
+      const b = h.body_battery != null ? (h.body_battery / 100) * 60 : null;
+      const v = h.hrv != null ? Math.min(h.hrv / 150, 1) * 40 : null;
+      if (b == null && v == null) return null;
+      return Math.round((b ?? 30) + (v ?? 20));
+    });
+    _healthChartInstances['fitness'] = new Chart(fitCtx, {
+      type: 'line',
+      data: {
+        labels: fitData.map(h => h.date.slice(5)),
+        datasets: [{
+          label: 'Fitnessindex',
+          data: fitnessIdx, spanGaps: true,
+          borderColor: CYAN,
+          backgroundColor: (ctx) => {
+            const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, 200);
+            g.addColorStop(0, 'rgba(6,182,212,.25)');
+            g.addColorStop(1, 'rgba(6,182,212,0)');
+            return g;
+          },
+          borderWidth: 2.5, pointRadius: 2, fill: true, tension: 0.4
+        }]
+      },
+      options: { ...defaults,
+        scales: {
+          x: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 8 } },
+          y: { grid: { color: gridColor }, ticks: { color: '#64748b', font: { size: 10 } },
+               min: 0, max: 100,
+               title: { display: true, text: 'Index (0–100)', color: '#475569', font: { size: 10 } } }
+        }
+      }
+    });
+  }
 }
 
 function openHealthModal() {
