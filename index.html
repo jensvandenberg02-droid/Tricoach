@@ -1011,7 +1011,7 @@ function applyInjuries(sessions, injuries) {
 
 function generatePlan() {
   const now    = new Date();
-  const z      = calcZones(PROFILE);
+  const z      = calcZones(getEffectivePaces());
   const future = EVENTS.filter(e => new Date(e.date) >= now)
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -1076,11 +1076,25 @@ function renderPlan(plan) {
     return;
   }
 
+  const ep = getEffectivePaces();
+  if (ep._calibrated) {
+    const banner = `<div style="background:rgba(252,76,2,.08);border:1px solid rgba(252,76,2,.3);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--t2)">
+      📊 Trainingsplan is gecalibreerd op basis van je race-resultaten
+      ${ep.run_pace ? `· Loop ${ep.run_pace}/km` : ''}
+      ${ep.swim_css ? `· Zwem ${ep.swim_css}/100m` : ''}
+      ${ep.ftp ? `· FTP ~${ep.ftp}W` : ''}
+      &nbsp;<button onclick="updateProfileFromResults()" class="btn btn-ghost btn-sm" style="margin-left:4px">Bewaar in profiel</button>
+    </div>`;
+    grid.innerHTML = banner;
+  } else {
+    grid.innerHTML = '';
+  }
+
   const now  = new Date();
   const today = now.toISOString().slice(0, 10);
   const phaseLabels = { base:'Base', build:'Build', peak:'Peak', taper:'Taper', race:'Race', recovery:'Herstel' };
 
-  grid.innerHTML = plan.map((week, i) => {
+  grid.innerHTML += plan.map((week, i) => {
     const wStart = week.weekStart;
     const wEnd   = new Date(wStart.getTime() + 6 * 86400000);
     const isCurrent = today >= wStart.toISOString().slice(0, 10) && today <= wEnd.toISOString().slice(0, 10);
@@ -1662,6 +1676,103 @@ function toast(msg, type = 'success') {
   setTimeout(() => el.remove(), 3500);
 }
 
+// ── CALIBRATED PACES FROM RACE RESULTS ───────────────────────
+function timeStrToSec(str) {
+  if (!str) return null;
+  const parts = str.trim().split(':').map(Number);
+  if (parts.some(isNaN)) return null;
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return null;
+}
+
+function getEffectivePaces() {
+  const p = { ...(PROFILE || {}) };
+  const now = new Date();
+
+  const pastWithResults = EVENTS
+    .filter(e => new Date(e.date) < now && e.results?.total)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  if (!pastWithResults.length) return p;
+
+  const swimSamples = [], runSamples = [], bikeSamples = [];
+
+  pastWithResults.slice(0, 5).forEach((ev, i) => {
+    const res = ev.results;
+    const w = 1 / (i + 1); // recentste = zwaarst gewogen
+    const isTri = ['HIM','IM','olympic-tri','sprint-tri'].includes(ev.type);
+
+    // Zwem: pace per 100m uit tri-splits
+    if (isTri && ev.dist_swim && res.swim) {
+      const sec = timeStrToSec(res.swim);
+      if (sec > 0) swimSamples.push({ v: sec / (ev.dist_swim * 10), w });
+    }
+
+    // Loop: pace per km
+    // Triathlon-run is vermoeid → vermenigvuldig met 0.94 voor equivalente frisse pace
+    if (isTri && ev.dist_run && res.run) {
+      const sec = timeStrToSec(res.run);
+      if (sec > 0) runSamples.push({ v: (sec / ev.dist_run) * 0.94, w });
+    }
+    // Pure loopwedstrijd
+    if (!isTri && ev.dist_run && res.total) {
+      const sec = timeStrToSec(res.total);
+      if (sec > 0) runSamples.push({ v: sec / ev.dist_run, w });
+    }
+
+    // Fiets: gemiddelde snelheid → FTP-schatting (23 + 1.5×wkg ≈ snelheid voor vlak)
+    if (isTri && ev.dist_bike && res.bike) {
+      const sec = timeStrToSec(res.bike);
+      if (sec > 0 && p.weight_kg) {
+        const kph = ev.dist_bike / (sec / 3600);
+        const ftpEst = Math.round(((kph - 23) / 1.5) * p.weight_kg);
+        if (ftpEst > 50) bikeSamples.push({ v: ftpEst, w });
+      }
+    }
+  });
+
+  const wavg = (arr) => {
+    const sw = arr.reduce((s, x) => s + x.w, 0);
+    return arr.reduce((s, x) => s + x.v * x.w, 0) / sw;
+  };
+
+  if (swimSamples.length) {
+    const avg = wavg(swimSamples);
+    const m = Math.floor(avg / 60), s = Math.round(avg % 60);
+    p.swim_css = `${m}:${String(s).padStart(2, '0')}`;
+    p._calibrated = true;
+  }
+  if (runSamples.length) {
+    const avg = wavg(runSamples);
+    const m = Math.floor(avg / 60), s = Math.round(avg % 60);
+    p.run_pace = `${m}:${String(s).padStart(2, '0')}`;
+    p._calibrated = true;
+  }
+  if (bikeSamples.length) {
+    p.ftp = Math.round(wavg(bikeSamples));
+    p._calibrated = true;
+  }
+
+  return p;
+}
+
+async function updateProfileFromResults() {
+  const ep = getEffectivePaces();
+  if (!ep._calibrated) { toast('Geen race-data beschikbaar om profiel bij te werken.', 'error'); return; }
+  const update = {};
+  if (ep.swim_css) update.swim_css = ep.swim_css;
+  if (ep.run_pace) update.run_pace = ep.run_pace;
+  if (ep.ftp)      update.ftp      = ep.ftp;
+  update.updated_at = new Date().toISOString();
+  const { error } = await sb.from('profiles').update(update).eq('id', USER.id);
+  if (error) { toast('Fout: ' + error.message, 'error'); return; }
+  await loadAll();
+  updateHero();
+  generateAndRender();
+  toast('Profiel bijgewerkt op basis van race-resultaten!', 'success');
+}
+
 // ── EVENT RESULTS ─────────────────────────────────────────────
 function openResultModal(ev) {
   const isTri = ['HIM','IM','olympic-tri','sprint-tri'].includes(ev.type);
@@ -1721,7 +1832,21 @@ async function saveResult() {
   closeModal('result-modal');
   await loadAll();
   renderEventsTab();
-  toast('Resultaat opgeslagen!', 'success');
+  generateAndRender(); // plan herbereken met nieuwe resultaten
+  toast('Resultaat opgeslagen! Trainingsplan is bijgewerkt.', 'success');
+
+  // Toon knop om profiel ook permanent bij te werken
+  const ep = getEffectivePaces();
+  if (ep._calibrated) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.style.cssText = 'background:var(--bg3);border:1px solid var(--accent);display:flex;align-items:center;gap:10px';
+    el.innerHTML = `<span style="flex:1;font-size:13px">Profiel bijwerken op basis van race-resultaten?</span>
+      <button onclick="updateProfileFromResults();this.parentElement.remove()" class="btn btn-primary btn-sm">Ja</button>
+      <button onclick="this.parentElement.remove()" class="btn btn-ghost btn-sm">Nee</button>`;
+    document.getElementById('toast-container').appendChild(el);
+    setTimeout(() => el.remove(), 8000);
+  }
 }
 
 // ── AUTO GARMIN SYNC ──────────────────────────────────────────
@@ -1784,7 +1909,7 @@ function formatDuration(sec) {
 }
 
 function estimateFinishTime(ev) {
-  const p = PROFILE || {};
+  const p = getEffectivePaces();
   let total = 0;
   let hasAny = false;
 
