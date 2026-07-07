@@ -1307,19 +1307,21 @@ async function signOut() {
 
 // ── LOAD ALL DATA ─────────────────────────────────────────────
 async function loadAll() {
-  const [profileRes, eventsRes, injuriesRes, doneRes, healthRes] = await Promise.all([
+  const [profileRes, eventsRes, injuriesRes, doneRes, healthRes, activitiesRes] = await Promise.all([
     sb.from('profiles').select('*').eq('id', USER.id).single(),
     sb.from('events').select('*').eq('user_id', USER.id).order('date'),
     sb.from('injuries').select('*').eq('user_id', USER.id).order('start_date', { ascending: false }),
     sb.from('session_done').select('session_key').eq('user_id', USER.id),
     sb.from('health_logs').select('*').eq('user_id', USER.id).order('date', { ascending: false }).limit(30),
+    sb.from('activities').select('*').eq('user_id', USER.id).order('date', { ascending: false }).limit(50),
   ]);
 
-  PROFILE  = profileRes.data  || {};
-  EVENTS   = eventsRes.data   || [];
-  INJURIES = injuriesRes.data || [];
-  DONE_SET = new Set((doneRes.data || []).map(r => r.session_key));
-  HEALTH   = healthRes.data   || [];
+  PROFILE    = profileRes.data    || {};
+  EVENTS     = eventsRes.data     || [];
+  INJURIES   = injuriesRes.data   || [];
+  DONE_SET   = new Set((doneRes.data || []).map(r => r.session_key));
+  HEALTH     = healthRes.data     || [];
+  ACTIVITIES = activitiesRes.data || [];
 
   // Laad beschikbaarheid
   AVAILABILITY = PROFILE.week_availability || {};
@@ -1329,6 +1331,7 @@ async function loadAll() {
   renderInjuriesTab();
   renderHealthTab();
   renderAvailabilityGrid();
+  renderActivities();
   updateAvatar();
 }
 
