@@ -53,25 +53,29 @@ export default async function handler(req, res) {
     });
     await client.login();
 
-    // Bouw de workout op (Garmin FIT-formaat via de API)
-    // We gebruiken addWorkout want dat werkt met de unofficiële API
+    const sportType = mapSportType(type || 'run');
+    const durationSec = durationSeconds || 3600;
+
+    // Garmin uses Jackson polymorphic deserialization — the `type` discriminator
+    // field on each step is mandatory, otherwise the API throws InvalidTypeIdException.
     const workout = {
       workoutName: name,
-      description:  notes || description || '',
-      sportType: mapSportType(type || 'run'),
-      estimatedDurationInSecs: durationSeconds || 3600,
+      description: notes || description || '',
+      sportType,
+      estimatedDurationInSecs: durationSec,
       estimatedDistanceInMeters: distanceMeters || 0,
       workoutSegments: [
         {
           segmentOrder: 1,
-          sportType: mapSportType(type || 'run'),
+          sportType,
           workoutSteps: [
             {
+              type: 'ExecutableStepDTO',          // ← required Jackson type discriminator
               stepOrder: 1,
-              stepType: { stepTypeId: 3, stepTypeKey: 'interval' },
+              stepType:     { stepTypeId: 3, stepTypeKey: 'interval' },
               endCondition: { conditionTypeId: 2, conditionTypeKey: 'time' },
-              endConditionValue: durationSeconds || 3600,
-              targetType: { workoutTargetTypeId: 1, workoutTargetTypeKey: 'no.target' },
+              endConditionValue: durationSec,
+              targetType:   { workoutTargetTypeId: 1, workoutTargetTypeKey: 'no.target' },
             },
           ],
         },
