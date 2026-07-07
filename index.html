@@ -265,30 +265,52 @@ a { color: var(--accent); text-decoration: none; }
 .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 
 /* ── PLAN ───────────────────────────────────────────────── */
-#plan-grid { display: grid; gap: 12px; }
+#plan-grid { display: grid; gap: 10px; }
 .week-card {
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--r); overflow: hidden;
-  transition: border-color .2s;
+  transition: border-color .2s, box-shadow .2s;
 }
-.week-card:hover { border-color: rgba(34,197,94,.25); }
+.week-card:hover { border-color: rgba(34,197,94,.2); }
 .week-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px; background: var(--bg3);
-  cursor: pointer; user-select: none;
+  padding: 14px 20px; background: var(--bg3);
+  cursor: pointer; user-select: none; position: relative; overflow: hidden;
 }
-.week-label { font-family: var(--font-c); font-size: 16px; font-weight: 700; }
+.week-header::before {
+  content:''; position:absolute; top:0; left:0; bottom:0; width:3px;
+  background: var(--phase-c, rgba(255,255,255,.1));
+}
+.week-num-bg {
+  position: absolute; right: 110px; top: 50%; transform: translateY(-55%);
+  font-family: var(--font-c); font-size: 80px; font-weight: 900; letter-spacing: -4px;
+  color: rgba(255,255,255,.035); line-height:1; pointer-events:none; user-select:none;
+}
+.week-header-left { position:relative; z-index:1; }
+.week-header-right { display:flex; align-items:center; gap:10px; position:relative; z-index:1; }
+.week-label { font-family:var(--font-c); font-size:22px; font-weight:900; letter-spacing:-.5px; line-height:1; }
+.week-label .wk-prefix { font-size:11px; font-weight:700; letter-spacing:2.5px; color:var(--t3); margin-right:4px; vertical-align:middle; font-family:var(--font); }
+.week-date { font-size:12px; color:var(--t3); margin-top:3px; letter-spacing:.3px; }
+.week-events-row { font-size:12px; color:var(--accent); margin-top:3px; font-weight:600; }
 .week-phase {
-  font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
-  text-transform: uppercase; padding: 3px 8px; border-radius: 4px;
+  font-size:10px; font-weight:800; letter-spacing:2px;
+  text-transform:uppercase; padding:4px 10px; border-radius:20px; white-space:nowrap;
 }
-.phase-base    { background: rgba(76,159,255,.15); color: var(--blue); }
-.phase-build   { background: rgba(46,204,113,.15); color: var(--green); }
-.phase-peak    { background: rgba(241,196,15,.15);  color: var(--yellow); }
-.phase-taper   { background: rgba(231,76,60,.15);   color: var(--red); }
-.phase-race    { background: rgba(252,76,2,.2);     color: var(--accent); }
-.phase-recovery{ background: rgba(155,89,182,.15);  color: var(--purple); }
-.week-toggle { color: var(--t3); font-size: 18px; transition: transform .2s; }
+/* Phase badge inside cards */
+.week-phase.phase-base     { background:rgba(96,165,250,.12);  color:var(--blue); }
+.week-phase.phase-build    { background:rgba(34,197,94,.12);   color:var(--green); }
+.week-phase.phase-peak     { background:rgba(251,191,36,.12);  color:#fbbf24; }
+.week-phase.phase-taper    { background:rgba(248,113,113,.12); color:#f87171; }
+.week-phase.phase-race     { background:rgba(34,197,94,.2);    color:var(--accent); }
+.week-phase.phase-recovery { background:rgba(167,139,250,.12); color:var(--purple); }
+/* Phase accent color on the week-card itself (for the ::before line) */
+.week-card.phase-base  .week-header::before { background:var(--blue); }
+.week-card.phase-build .week-header::before { background:var(--green); }
+.week-card.phase-peak  .week-header::before { background:#fbbf24; }
+.week-card.phase-taper .week-header::before { background:#f87171; }
+.week-card.phase-race  .week-header::before { background:var(--accent); }
+.week-card.phase-recovery .week-header::before { background:var(--purple); }
+.week-toggle { color:var(--t3); font-size:12px; transition:transform .2s; margin-left:2px; }
 
 /* ── BESCHIKBAARHEID GRID ───────────────────────────────── */
 .avail-day-row { display:flex; align-items:center; gap:8px; }
@@ -329,30 +351,45 @@ a { color: var(--accent); text-decoration: none; }
 .week-task-item .task-meta { font-size:12px; color:var(--t2); margin-top:1px; }
 .week-card.open .week-toggle { transform: rotate(180deg); }
 .sessions-grid {
-  display: none; padding: 12px 16px;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;
+  display: none; padding: 14px 18px;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 10px;
 }
 .week-card.open .sessions-grid { display: grid; }
 .session-item {
-  background: var(--bg2); border-radius: var(--r-sm);
-  border-left: 3px solid var(--border); padding: 10px 12px;
-  display: flex; flex-direction: column; gap: 4px;
+  background: linear-gradient(160deg, var(--bg3) 0%, var(--bg2) 100%);
+  border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 14px 10px;
+  display: flex; flex-direction: column; gap: 5px;
+  position: relative; overflow: hidden;
+  transition: border-color .2s, transform .15s;
 }
-.session-item.run   { border-color: var(--green); }
-.session-item.bike  { border-color: var(--blue); }
-.session-item.swim  { border-color: #06b6d4; }
-.session-item.str   { border-color: var(--purple); }
-.session-item.rest  { border-color: var(--t3); opacity: .6; }
-.session-day  { font-size: 11px; color: var(--t3); text-transform: uppercase; letter-spacing: 1px; }
-.session-name { font-size: 14px; font-weight: 600; color: var(--t1); }
-.session-meta { font-size: 12px; color: var(--t2); }
-.session-done-cb { font-size: 11px; display: flex; align-items: center; gap: 5px; margin-top: 4px; cursor: pointer; color: var(--t3); }
-.session-done-cb input { cursor: pointer; accent-color: var(--accent); }
-.session-actions { display: flex; gap: 4px; margin-top: 6px; }
+.session-item:hover { transform: translateY(-1px); border-color: rgba(255,255,255,.12); }
+/* Top sport accent bar */
+.session-item::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background: var(--sport-c, rgba(255,255,255,.08));
+}
+.session-item.run  { --sport-c: var(--green); }
+.session-item.bike { --sport-c: var(--blue); }
+.session-item.swim { --sport-c: #06b6d4; }
+.session-item.str  { --sport-c: var(--purple); }
+.session-item.rest { opacity:.5; }
+/* Session card header row: icon + day */
+.session-header-row {
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;
+}
+.session-sport-icon { font-size:15px; line-height:1; }
+.session-day { font-size:10px; color:var(--t3); text-transform:uppercase; letter-spacing:2px; font-weight:700; }
+.session-name { font-family:var(--font-c); font-size:18px; font-weight:800; color:var(--t1); line-height:1.1; letter-spacing:-.2px; }
+.session-meta { font-size:12px; color:var(--t2); }
+.session-desc-text { font-size:11px; color:var(--t3); }
+.session-done-cb { font-size:11px; display:flex; align-items:center; gap:5px; margin-top:4px; cursor:pointer; color:var(--t3); }
+.session-done-cb input { cursor:pointer; accent-color:var(--accent); }
+.session-actions { display:flex; gap:4px; margin-top:6px; }
 
 /* ── CURRENT WEEK HIGHLIGHT ─────────────────────────────── */
-.week-card.current-week { border-color: rgba(252,76,2,.4); }
-.week-card.current-week .week-header { background: rgba(252,76,2,.08); }
+.week-card.current-week { border-color: rgba(34,197,94,.35); box-shadow: 0 0 0 1px rgba(34,197,94,.1), var(--shadow); }
+.week-card.current-week .week-header { background: linear-gradient(90deg, rgba(34,197,94,.07) 0%, var(--bg3) 60%); }
 
 /* ── ACTIVITIES ─────────────────────────────────────────── */
 #activities-list { display: grid; gap: 8px; }
@@ -1342,12 +1379,14 @@ function renderPlan(plan) {
 
   const ep = getEffectivePaces();
   if (ep._calibrated) {
-    const banner = `<div style="background:rgba(252,76,2,.08);border:1px solid rgba(252,76,2,.3);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--t2)">
-      📊 Trainingsplan is gecalibreerd op basis van je race-resultaten
-      ${ep.run_pace ? `· Loop ${ep.run_pace}/km` : ''}
-      ${ep.swim_css ? `· Zwem ${ep.swim_css}/100m` : ''}
-      ${ep.ftp ? `· FTP ~${ep.ftp}W` : ''}
-      &nbsp;<button onclick="updateProfileFromResults()" class="btn btn-ghost btn-sm" style="margin-left:4px">Bewaar in profiel</button>
+    const banner = `<div style="background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:var(--r-sm);padding:12px 16px;margin-bottom:14px;font-size:13px;color:var(--t2);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:16px">🎯</span>
+      <span style="flex:1">Gecalibreerd op race-resultaten
+        ${ep.run_pace ? `<span style="color:var(--accent);font-weight:600"> · Loop ${ep.run_pace}/km</span>` : ''}
+        ${ep.swim_css ? `<span style="color:var(--accent);font-weight:600"> · Zwem ${ep.swim_css}/100m</span>` : ''}
+        ${ep.ftp ? `<span style="color:var(--accent);font-weight:600"> · FTP ~${ep.ftp}W</span>` : ''}
+      </span>
+      <button onclick="updateProfileFromResults()" class="btn btn-ghost btn-sm">Bewaar in profiel</button>
     </div>`;
     grid.innerHTML = banner;
   } else {
@@ -1364,18 +1403,31 @@ function renderPlan(plan) {
     const isCurrent = today >= wStart.toISOString().slice(0, 10) && today <= wEnd.toISOString().slice(0, 10);
     const dateLabel = `${wStart.getDate()} ${monthShort(wStart)} — ${wEnd.getDate()} ${monthShort(wEnd)}`;
 
+    const sportIcon = { run:'🏃', bike:'🚴', swim:'🏊', str:'💪', rest:'🛌', race:'🏁' };
+    const phaseIcons = { base:'📈', build:'⚡', peak:'🔥', taper:'📉', race:'🏁', recovery:'💆' };
+
     const sessHtml = week.sessions.map(s => {
       const key = `w${week.weekNum}_${s.day}_${s.name.replace(/\s+/g, '_')}`;
       const done = DONE_SET.has(key);
+      const icon = sportIcon[s.type] || '⚡';
       if (s.type === 'rest' && !s.name.includes('Race')) {
-        return `<div class="session-item rest"><div class="session-day">${s.day}</div><div class="session-name">${s.name}</div></div>`;
+        return `<div class="session-item rest">
+          <div class="session-header-row">
+            <span class="session-sport-icon">${icon}</span>
+            <span class="session-day">${s.day}</span>
+          </div>
+          <div class="session-name">${s.name}</div>
+        </div>`;
       }
       return `
         <div class="session-item ${s.type}">
-          <div class="session-day">${s.day}</div>
+          <div class="session-header-row">
+            <span class="session-sport-icon">${icon}</span>
+            <span class="session-day">${s.day}</span>
+          </div>
           <div class="session-name">${s.name}</div>
           <div class="session-meta">${s.meta}</div>
-          ${s.desc ? `<div class="session-meta" style="color:var(--t3)">${s.desc}</div>` : ''}
+          ${s.desc ? `<div class="session-desc-text">${s.desc}</div>` : ''}
           <div class="session-actions">
             <button class="btn btn-sm btn-garmin" onclick="pushSessionToGarmin(this,'${escHtml(s.name)}','${s.type}','${escHtml(s.meta)}',${week.weekNum},'${s.day}')">
               ⌚ Garmin
@@ -1388,17 +1440,22 @@ function renderPlan(plan) {
         </div>`;
     }).join('');
 
+    const eventsRow = week.events.length
+      ? `<div class="week-events-row">${week.events.map(e => `${getFlag(e.country)} ${e.name}`).join(' · ')}</div>`
+      : '';
+
     return `
-      <div class="week-card ${isCurrent ? 'current-week' : ''} ${isCurrent ? 'open' : ''}">
+      <div class="week-card phase-${week.phase} ${isCurrent ? 'current-week' : ''} ${isCurrent ? 'open' : ''}">
         <div class="week-header" onclick="toggleWeek(this.parentElement)">
-          <div>
-            <span class="week-label">Week ${week.weekNum}</span>
-            <span style="color:var(--t3);font-size:13px;margin-left:10px">${dateLabel}</span>
-            ${week.events.map(e => `<span style="margin-left:8px;font-size:12px">${getFlag(e.country)} ${e.name}</span>`).join('')}
+          <div class="week-num-bg">${String(week.weekNum).padStart(2,'0')}</div>
+          <div class="week-header-left">
+            <div class="week-label"><span class="wk-prefix">WK</span>${week.weekNum}</div>
+            <div class="week-date">${dateLabel}</div>
+            ${eventsRow}
           </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <span class="week-phase phase-${week.phase}">${phaseLabels[week.phase]}</span>
-            <span class="week-toggle">▼</span>
+          <div class="week-header-right">
+            <span class="week-phase phase-${week.phase}">${phaseIcons[week.phase]} ${phaseLabels[week.phase]}</span>
+            <span class="week-toggle">▾</span>
           </div>
         </div>
         <div class="sessions-grid">${sessHtml}</div>
