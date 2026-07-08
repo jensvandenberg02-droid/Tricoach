@@ -1739,23 +1739,36 @@ function setHeroFlagColors(country) {
   const k = (country || '').toLowerCase().trim();
   const cols = COUNTRY_COLORS[k];
   if (!cols) {
-    // Reset to default
     hero.style.background = '';
     return;
   }
   const [c1, c2, c3] = cols;
-  // Subtle diagonal flag wash on the right, dark base on the left
-  hero.style.background = `
-    linear-gradient(105deg,
-      #09111a 0%,
-      #09111a 38%,
-      ${c1}18 50%,
-      ${c2}18 63%,
-      ${c3}18 76%,
-      ${c3}08 100%
-    ),
-    linear-gradient(180deg, rgba(34,197,94,.04) 0%, transparent 50%)
-  `;
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  if (isLight) {
+    hero.style.background = `
+      linear-gradient(105deg,
+        #e8f5ee 0%,
+        #edf4f0 35%,
+        ${c1}22 50%,
+        ${c2}22 63%,
+        ${c3}22 76%,
+        ${c3}10 100%
+      ),
+      linear-gradient(180deg, rgba(34,197,94,.07) 0%, transparent 55%)
+    `;
+  } else {
+    hero.style.background = `
+      linear-gradient(105deg,
+        #09111a 0%,
+        #09111a 38%,
+        ${c1}18 50%,
+        ${c2}18 63%,
+        ${c3}18 76%,
+        ${c3}08 100%
+      ),
+      linear-gradient(180deg, rgba(34,197,94,.04) 0%, transparent 50%)
+    `;
+  }
 }
 
 function updateHero() {
@@ -4196,6 +4209,9 @@ function toggleTheme() {
       ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
       : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`;
   }
+  // Herbereken hero vlagkleuren voor nieuw thema
+  const nextEvt = EVENTS.filter(e => new Date(e.date) >= new Date()).sort((a,b) => new Date(a.date)-new Date(b.date))[0];
+  setHeroFlagColors(nextEvt?.country || null);
 }
 
 // ── TOAST ─────────────────────────────────────────────────────
