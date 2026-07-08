@@ -995,7 +995,7 @@ a { color: var(--accent); text-decoration: none; }
       <!-- Weekly volume chart -->
       <div class="card" id="volume-chart-card" style="margin-bottom:16px;display:none">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <div style="font-weight:600;font-size:14px">Wekelijks volume (km)</div>
+          <div style="font-weight:600;font-size:14px">Wekelijks volume (uren)</div>
           <div style="display:flex;gap:12px;font-size:11px;color:var(--muted)">
             <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#06b6d4;display:inline-block"></span>Zwem</span>
             <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#3b82f6;display:inline-block"></span>Fiets</span>
@@ -3093,7 +3093,7 @@ function renderVolumeChart() {
   // Group by ISO week (Mon-based)
   const weekMap = {};
   ACTIVITIES.forEach(a => {
-    if (!a.date || !a.distance) return;
+    if (!a.date || !a.duration) return;
     const d = new Date(a.date);
     // Monday of that week
     const day = d.getDay(); // 0=Sun
@@ -3101,10 +3101,10 @@ function renderVolumeChart() {
     const mon = new Date(d); mon.setDate(d.getDate() + diff);
     const key = mon.toISOString().slice(0, 10);
     if (!weekMap[key]) weekMap[key] = { swim: 0, bike: 0, run: 0 };
-    const km = a.distance / 1000;
-    if (a.type === 'Swim') weekMap[key].swim += km;
-    else if (a.type === 'Ride') weekMap[key].bike += km;
-    else if (a.type === 'Run')  weekMap[key].run  += km;
+    const hrs = a.duration / 3600;
+    if (a.type === 'Swim') weekMap[key].swim += hrs;
+    else if (a.type === 'Ride') weekMap[key].bike += hrs;
+    else if (a.type === 'Run')  weekMap[key].run  += hrs;
   });
 
   // Last 12 weeks sorted
@@ -3139,7 +3139,7 @@ function renderVolumeChart() {
         tooltip: {
           backgroundColor: '#17202a', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
           titleColor: '#e2e8f0', bodyColor: '#94a3b8', cornerRadius: 8, padding: 10,
-          callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw} km` }
+          callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw} u` }
         }
       },
       scales: {
