@@ -1691,10 +1691,71 @@ const COUNTRY_FLAGS = {
   'polen':         '🇵🇱', 'finland':      '🇫🇮',
 };
 
+// Flag colors: [c1, c2, c3] — used for hero gradient
+const COUNTRY_COLORS = {
+  'belgie':               ['#000000','#FFE000','#EF3340'],
+  'belgië':               ['#000000','#FFE000','#EF3340'],
+  'nederland':            ['#AE1C28','#FFFFFF','#21468B'],
+  'duitsland':            ['#000000','#DD0000','#FFCE00'],
+  'frankrijk':            ['#002395','#FFFFFF','#ED2939'],
+  'spanje':               ['#AA151B','#F1BF00','#AA151B'],
+  'italie':               ['#009246','#FFFFFF','#CE2B37'],
+  'italië':               ['#009246','#FFFFFF','#CE2B37'],
+  'portugal':             ['#006600','#FF0000','#FFD700'],
+  'noorwegen':            ['#EF2B2D','#FFFFFF','#002868'],
+  'zweden':               ['#006AA7','#FECC02','#006AA7'],
+  'denemarken':           ['#C60C30','#FFFFFF','#C60C30'],
+  'zwitserland':          ['#FF0000','#FFFFFF','#FF0000'],
+  'oostenrijk':           ['#ED2939','#FFFFFF','#ED2939'],
+  'uk':                   ['#012169','#FFFFFF','#C8102E'],
+  'verenigd koninkrijk':  ['#012169','#FFFFFF','#C8102E'],
+  'usa':                  ['#B22234','#FFFFFF','#3C3B6E'],
+  'verenigde staten':     ['#B22234','#FFFFFF','#3C3B6E'],
+  'hawaii':               ['#B22234','#FFFFFF','#3C3B6E'],
+  'australie':            ['#00008B','#FFFFFF','#FF0000'],
+  'australië':            ['#00008B','#FFFFFF','#FF0000'],
+  'canada':               ['#FF0000','#FFFFFF','#FF0000'],
+  'japan':                ['#FFFFFF','#BC002D','#FFFFFF'],
+  'mexico':               ['#006847','#FFFFFF','#CE1126'],
+  'brazilie':             ['#009C3B','#FEDF00','#002776'],
+  'brazilië':             ['#009C3B','#FEDF00','#002776'],
+  'kroatie':              ['#FF0000','#FFFFFF','#0000FF'],
+  'kroatië':              ['#FF0000','#FFFFFF','#0000FF'],
+  'griekenland':          ['#0D5EAF','#FFFFFF','#0D5EAF'],
+  'hongarije':            ['#CE2939','#FFFFFF','#477050'],
+  'polen':                ['#FFFFFF','#DC143C','#FFFFFF'],
+  'finland':              ['#FFFFFF','#003580','#FFFFFF'],
+};
+
 function getFlag(country) {
   if (!country) return '🏁';
   const k = country.toLowerCase().trim();
   return COUNTRY_FLAGS[k] || '🏁';
+}
+
+function setHeroFlagColors(country) {
+  const hero = document.getElementById('hero');
+  if (!hero) return;
+  const k = (country || '').toLowerCase().trim();
+  const cols = COUNTRY_COLORS[k];
+  if (!cols) {
+    // Reset to default
+    hero.style.background = '';
+    return;
+  }
+  const [c1, c2, c3] = cols;
+  // Subtle diagonal flag wash on the right, dark base on the left
+  hero.style.background = `
+    linear-gradient(105deg,
+      #09111a 0%,
+      #09111a 38%,
+      ${c1}18 50%,
+      ${c2}18 63%,
+      ${c3}18 76%,
+      ${c3}08 100%
+    ),
+    linear-gradient(180deg, rgba(34,197,94,.04) 0%, transparent 50%)
+  `;
 }
 
 function updateHero() {
@@ -1717,10 +1778,12 @@ function updateHero() {
     document.getElementById('hero-event-name').textContent = next.name;
     document.getElementById('hero-event-sub').textContent  =
       `${eventTypeLabel(next.type)}${loc ? ' · ' + loc : ''}`;
+    setHeroFlagColors(next.country);
   } else {
     document.getElementById('hero-eyebrow').innerHTML = `${ICONS.race || ''} <span>Volgend event</span>`;
     document.getElementById('hero-event-name').textContent = 'Geen event gepland';
     document.getElementById('hero-event-sub').textContent  = 'Voeg een event toe via het Events-tabblad';
+    setHeroFlagColors(null);
   }
 }
 
