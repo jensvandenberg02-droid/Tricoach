@@ -1522,7 +1522,7 @@ function eventTypeLabel(type) {
   return map[type] || type;
 }
 
-function makeSessions(z, phase, type, weekNum) {
+function makeSessions(z, phase, type, weekNum, evt) {
   const isTri  = ['HIM','IM','olympic-tri','sprint-tri'].includes(type);
   const isDu   = type === 'duathlon';
   const isRun  = ['5K','10K','HM','marathon'].includes(type);
@@ -1560,6 +1560,81 @@ function makeSessions(z, phase, type, weekNum) {
       ]),
       { day:'Zo', type:'rest', name:'Rust', meta:'', desc:'' },
     ];
+  }
+
+  // ── RACE WEEK (activatie Mon-Fri + race op de juiste dag) ───────────────────
+  // Sessies zijn minimaal: benen fris houden, geen vermoeidheid opbouwen.
+  // De race zelf verschijnt als sessie op de weekdag die overeenkomt met de eventdatum.
+  if (phase === 'race') {
+    const DAY_NAMES = ['Zo','Ma','Di','Wo','Do','Vr','Za']; // 0=zo … 6=za
+    const raceDay = evt?.date ? DAY_NAMES[new Date(evt.date).getDay()] : 'Za';
+    const evtLabel = evt ? eventTypeLabel(evt.type) : 'Wedstrijd';
+    const evtName  = evt?.name ? `${evtLabel}: ${evt.name}` : evtLabel;
+    const priorityBadge = evt?.priority === 'A' ? ' 🏆' : evt?.priority === 'B' ? ' ⭐' : '';
+
+    // Basisweek activatie: altijd Ma=rust, Di=activatieloop, Wo=korte fiets
+    const base = [
+      { day:'Ma', type:'rest', name:'Rust', meta:'', desc:'Laatste herstel voor de race' },
+      { day:'Di', type:'run',  name:'Activatieloop', meta:'15 min + 4×100m strides',
+        desc:'Benen wakker houden — absoluut minimaal volume',
+        garminSteps: [
+          { kind:'warmup',  secs:300, desc:'5 min inlopen Z1' },
+          { kind:'interval', secs:300, desc:'5 min Z2' },
+          { kind:'repeat', sets:4, steps:[
+            { kind:'interval', dist:100, desc:'100m stride' },
+            { kind:'recovery', secs:60,  desc:'60s wandelen' },
+          ]},
+          { kind:'cooldown', secs:300, desc:'5 min uitlopen' },
+        ]},
+      { day:'Wo', type:'bike', name:'Korte activatierit', meta:'20 min Z1 + 3×30s opwekkers',
+        desc:'Benen losmaken — hartslag laag',
+        garminSteps: [
+          { kind:'warmup',  secs:300, desc:'5 min Z1' },
+          { kind:'interval', secs:600, desc:'10 min Z1' },
+          { kind:'repeat', sets:3, steps:[
+            { kind:'interval', secs:30,  desc:'30s opwekker Z4' },
+            { kind:'recovery', secs:120, desc:'2 min Z1' },
+          ]},
+          { kind:'cooldown', secs:300, desc:'5 min Z1' },
+        ]},
+    ];
+
+    // Do: rust of zwem shakeout voor tri/zwem events
+    if (isTri || isSwim) {
+      base.push({ day:'Do', type:'swim', name:'Race-prep shakeout', meta:'600m easy + 4×50m race-pace',
+        desc:'Vertrouwen opbouwen, nul vermoeidheid',
+        garminSteps: [
+          swimWarmup,
+          { kind:'interval', dist:200, desc:'200m easy' },
+          { kind:'repeat', sets:4, steps:[
+            { kind:'interval', dist:50, desc:'50m race-pace' },
+            { kind:'recovery', secs:30, desc:'30s rust' },
+          ]},
+          swimCooldown,
+        ]});
+    } else {
+      base.push({ day:'Do', type:'rest', name:'Rust', meta:'', desc:'Voeten omhoog, hydrateren' });
+    }
+
+    base.push({ day:'Vr', type:'rest', name:'Rust', meta:'', desc:'Laatste rustdag — spullen klaarleggen' });
+
+    // Vul zaterdag en zondag in: race op raceDay, rest op de andere dag
+    const weekendDays = ['Za','Zo'];
+    weekendDays.forEach(d => {
+      if (d === raceDay) {
+        base.push({
+          day: d, type:'race',
+          name: evtName + priorityBadge,
+          meta: evt?.goal_time ? `🎯 Doeltijd: ${evt.goal_time}` : 'Geef alles!',
+          desc: `Race-dag — warm goed op, rij/loop je eigen plan${evt?.goal_time ? ` · streef naar ${evt.goal_time}` : ''}`,
+          garminSteps: null,
+        });
+      } else {
+        base.push({ day: d, type:'rest', name:'Rust', meta:'', desc: d === 'Za' && raceDay === 'Zo' ? 'Dag voor de race — benen omhoog' : 'Herstel na race' });
+      }
+    });
+
+    return base;
   }
 
   // ── TAPER (volume flink omlaag, snelheid vasthouden) ─────────────────────────
@@ -2248,10 +2323,16 @@ function enforcePeriodization(sessions) {
   return fixed;
 }
 
-function applyInjuries(sessions, injuries) {
-  const now = new Date().toISOString().slice(0, 10);
+// weekDate: de startdatum van de te beoordelen week (voor toekomstige weken)
+// Fallback naar vandaag zodat bestaande aanroepen zonder weekDate blijven werken.
+function applyInjuries(sessions, injuries, weekDate) {
+  const checkDate = weekDate
+    ? (weekDate instanceof Date ? weekDate : new Date(weekDate)).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+  // Een blessure is actief in deze week als:
+  //   start_date <= checkDate EN (geen end_date OF end_date >= checkDate)
   const active = injuries.filter(inj =>
-    inj.start_date <= now && (!inj.end_date || inj.end_date >= now)
+    inj.start_date <= checkDate && (!inj.end_date || inj.end_date >= checkDate)
   );
   return sessions.map(s => {
     let modified = { ...s };
@@ -2426,9 +2507,9 @@ function generatePlan() {
     const goalOverride = calcGoalPaces(nextEvt);
     const weekZ = goalOverride ? { ...zBase, ...goalOverride } : zBase;
 
-    let sessions = makeSessions(weekZ, phase, nextEvt.type, w + 1);
+    let sessions = makeSessions(weekZ, phase, nextEvt.type, w + 1, nextEvt);
     sessions = enforcePeriodization(sessions);  // ← structurele bewaker: altijd aanroepen
-    sessions = applyInjuries(sessions, INJURIES);
+    sessions = applyInjuries(sessions, INJURIES, weekStart);
     if (Object.keys(AVAILABILITY).length) {
       sessions = scheduleWithAvailability(sessions, AVAILABILITY);
     }
@@ -2455,10 +2536,15 @@ function renderPlan(plan) {
   }
 
   const ep = getEffectivePaces();
-  if (ep._calibrated) {
-    const banner = `<div style="background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:var(--r-sm);padding:12px 16px;margin-bottom:14px;font-size:13px;color:var(--t2);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span style="font-size:16px">🎯</span>
-      <span style="flex:1">Gecalibreerd op race-resultaten
+  if (ep._calibrated || ep._stravaCalibrated) {
+    const isRace   = ep._calibrated;
+    const icon     = isRace ? '🎯' : '📊';
+    const label    = isRace ? 'Gecalibreerd op race-resultaten' : 'Afgestemd op recente Strava-activiteiten';
+    const color    = isRace ? 'rgba(34,197,94,.2)' : 'rgba(96,165,250,.2)';
+    const bg       = isRace ? 'rgba(34,197,94,.06)' : 'rgba(96,165,250,.06)';
+    const banner = `<div style="background:${bg};border:1px solid ${color};border-radius:var(--r-sm);padding:12px 16px;margin-bottom:14px;font-size:13px;color:var(--t2);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:16px">${icon}</span>
+      <span style="flex:1">${label}
         ${ep.run_pace ? `<span style="color:var(--accent);font-weight:600"> · Loop ${ep.run_pace}/km</span>` : ''}
         ${ep.swim_css ? `<span style="color:var(--accent);font-weight:600"> · Zwem ${ep.swim_css}/100m</span>` : ''}
         ${ep.ftp ? `<span style="color:var(--accent);font-weight:600"> · FTP ~${ep.ftp}W</span>` : ''}
@@ -3788,6 +3874,79 @@ function getEffectivePaces() {
   const p = { ...(PROFILE || {}) };
   const now = new Date();
 
+  // ── STRAVA ACTIVITEITEN (laatste 6 weken) ──────────────────────────────────
+  // Worden gebruikt als baseline als er geen of weinig race-resultaten zijn.
+  // Race-resultaten (hieronder) overschrijven Strava-paces als ze beschikbaar zijn.
+  if (Array.isArray(ACTIVITIES) && ACTIVITIES.length) {
+    const sixWeeksAgo = new Date(now.getTime() - 42 * 86400000);
+    const recent = ACTIVITIES.filter(a => a.start_date && new Date(a.start_date) >= sixWeeksAgo);
+
+    // Looppaces uit trainingsactiviteiten (geen wedstrijden)
+    // Gebruik alleen 'gewone' loopactiviteiten, geen races (average_speed is trainingsinspanning)
+    const runActs = recent.filter(a =>
+      a.type === 'Run' && a.average_speed > 0 && a.distance >= 4000
+      && !a.workout_type // workout_type 1 = race in Strava
+    );
+    if (runActs.length >= 2) {
+      // Langzamere runs (>8km) → proxy voor Z2-drempelpace
+      const longRuns = runActs.filter(a => a.distance >= 8000);
+      const pool = longRuns.length >= 2 ? longRuns : runActs;
+      // Weggemiddelde: recentste krijgt gewicht 1, oudere lager
+      const sorted = [...pool].sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+      let sumW = 0, sumV = 0;
+      sorted.slice(0, 6).forEach((a, i) => {
+        const w = 1 / (i + 1);
+        const secPerKm = 1000 / a.average_speed; // m/s → sec/km
+        sumV += secPerKm * w; sumW += w;
+      });
+      const avgSecPerKm = sumV / sumW;
+      // Lange duurlooppace ≈ Z2 → threshold ≈ Z2 - 50s/km
+      const thresholdPace = Math.max(180, avgSecPerKm - 50);
+      const fmt = s => `${Math.floor(s/60)}:${String(Math.round(s % 60)).padStart(2,'0')}`;
+      // Alleen overschrijven als het profiel nog geen handmatige pace heeft
+      if (!p._calibrated) {
+        p.run_pace = fmt(thresholdPace);
+        p._stravaCalibrated = true;
+      }
+    }
+
+    // Zwempaces uit Strava zwemactiviteiten
+    const swimActs = recent.filter(a => a.type === 'Swim' && a.average_speed > 0 && a.distance >= 500);
+    if (swimActs.length >= 2 && !p._calibrated) {
+      const sorted = [...swimActs].sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+      let sumW = 0, sumV = 0;
+      sorted.slice(0, 5).forEach((a, i) => {
+        const w = 1 / (i + 1);
+        const secPer100 = 100 / a.average_speed; // m/s → sec/100m
+        sumV += secPer100 * w; sumW += w;
+      });
+      const avg = sumV / sumW;
+      const fmt = s => `${Math.floor(s/60)}:${String(Math.round(s % 60)).padStart(2,'0')}`;
+      p.swim_css = fmt(avg);
+      p._stravaCalibrated = true;
+    }
+
+    // FTP-schatting uit fietsactiviteiten met vermogensmeter (average_watts aanwezig)
+    const bikeActs = recent.filter(a =>
+      (a.type === 'Ride' || a.type === 'VirtualRide') && a.average_watts > 0 && a.moving_time >= 2400
+    );
+    if (bikeActs.length >= 2 && !p._calibrated) {
+      const sorted = [...bikeActs].sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+      let sumW = 0, sumV = 0;
+      sorted.slice(0, 6).forEach((a, i) => {
+        const w = 1 / (i + 1);
+        // FTP ≈ 95% van gemiddeld vermogen over een langere inspanning
+        sumV += (a.average_watts * 0.95) * w; sumW += w;
+      });
+      if (!p._calibrated) {
+        p.ftp = Math.round(sumV / sumW);
+        p._stravaCalibrated = true;
+      }
+    }
+  }
+
+  // ── RACE RESULTATEN (hogere prioriteit dan Strava trainingsdata) ──────────
+  // Race-afgeleidde paces overschrijven Strava-paces altijd.
   const pastWithResults = EVENTS
     .filter(e => new Date(e.date) < now && e.results?.total)
     .sort((a, b) => new Date(b.date) - new Date(a.date));
