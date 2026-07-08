@@ -702,6 +702,70 @@ a { color: var(--accent); text-decoration: none; }
 .modal h3 { font-family: var(--font-c); font-size: 22px; font-weight: 800; margin-bottom: 20px; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
 
+/* ── AI COACH ────────────────────────────────────────────── */
+.coach-wrap {
+  display: flex; flex-direction: column; gap: 12px;
+  max-width: 720px; margin: 0 auto;
+}
+.coach-intro {
+  text-align: center; padding: 28px 20px;
+}
+.coach-suggestions {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px;
+}
+.coach-suggest-btn {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 20px; padding: 6px 14px; font-size: 12px;
+  color: var(--text-secondary); cursor: pointer; transition: all .15s;
+}
+.coach-suggest-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+#coach-messages { display: flex; flex-direction: column; gap: 10px; }
+.coach-msg {
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.coach-msg.user { flex-direction: row-reverse; }
+.coach-bubble {
+  max-width: 80%; padding: 12px 16px; border-radius: 16px;
+  font-size: 14px; line-height: 1.55; white-space: pre-wrap;
+}
+.coach-msg.user .coach-bubble {
+  background: var(--accent); color: #fff; border-bottom-right-radius: 4px;
+}
+.coach-msg.assistant .coach-bubble {
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--text); border-bottom-left-radius: 4px;
+}
+.coach-avatar {
+  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; background: var(--bg3);
+}
+.coach-msg.assistant .coach-avatar { background: var(--accent); }
+.coach-input-row {
+  display: flex; gap: 8px; align-items: flex-end;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 8px 8px 8px 12px;
+}
+.coach-textarea {
+  flex: 1; background: transparent; border: none; outline: none;
+  font-size: 14px; color: var(--text); resize: none; line-height: 1.5;
+  font-family: inherit; min-height: 24px; max-height: 120px;
+}
+.coach-textarea::placeholder { color: var(--muted); }
+.coach-typing {
+  display: flex; gap: 4px; align-items: center; padding: 4px 0;
+}
+.coach-typing span {
+  width: 7px; height: 7px; background: var(--muted); border-radius: 50%;
+  animation: coach-bounce .9s infinite;
+}
+.coach-typing span:nth-child(2) { animation-delay: .15s; }
+.coach-typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes coach-bounce {
+  0%,80%,100% { transform: translateY(0); }
+  40%          { transform: translateY(-5px); }
+}
+
 /* ── TOAST ───────────────────────────────────────────────── */
 #toast-container {
   position: fixed; bottom: 24px; right: 24px; z-index: 9999;
@@ -844,6 +908,7 @@ a { color: var(--accent); text-decoration: none; }
       <button onclick="switchTab('injuries')">Blessures</button>
       <button onclick="switchTab('health')">Gezondheid</button>
       <button onclick="switchTab('profile')">Profiel</button>
+      <button onclick="switchTab('coach')">🤖 Coach</button>
     </nav>
     <div class="topbar-right">
       <button class="btn-icon-only" id="theme-btn" onclick="toggleTheme()" title="Thema wisselen">
@@ -926,6 +991,18 @@ a { color: var(--accent); text-decoration: none; }
       <div class="section-header">
         <div class="section-title">Strava Activiteiten</div>
         <button class="btn btn-secondary btn-sm" onclick="syncStrava(this)">↺ Sync Strava</button>
+      </div>
+      <!-- Weekly volume chart -->
+      <div class="card" id="volume-chart-card" style="margin-bottom:16px;display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="font-weight:600;font-size:14px">Wekelijks volume (km)</div>
+          <div style="display:flex;gap:12px;font-size:11px;color:var(--muted)">
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#06b6d4;display:inline-block"></span>Zwem</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#3b82f6;display:inline-block"></span>Fiets</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#22c55e;display:inline-block"></span>Loop</span>
+          </div>
+        </div>
+        <div style="height:160px;position:relative"><canvas id="chart-volume"></canvas></div>
       </div>
       <div id="activities-list"><div class="empty"><div class="ico">🏃</div>Klik op "Sync Strava" om activiteiten te laden.</div></div>
     </div>
@@ -1166,6 +1243,39 @@ a { color: var(--accent); text-decoration: none; }
       <div class="card">
         <div class="card-title">Account</div>
         <button class="btn btn-ghost" onclick="signOut()">Uitloggen</button>
+      </div>
+    </div>
+
+    <!-- COACH TAB -->
+    <div id="tab-coach" class="tab-pane">
+      <div class="section-header">
+        <div class="section-title">AI Coach</div>
+        <button class="btn btn-ghost btn-sm" onclick="clearCoachChat()" title="Wis gesprek">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          Wis
+        </button>
+      </div>
+      <div class="coach-wrap">
+        <div class="coach-intro card">
+          <div style="font-size:28px;margin-bottom:8px">🤖</div>
+          <div style="font-weight:600;margin-bottom:4px">Jouw persoonlijke triathloncoach</div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.5">Stel vragen over training, voeding, herstel of racetactiek. De coach kent jouw profiel, events, blessures en activiteiten.</div>
+          <div class="coach-suggestions">
+            <button class="coach-suggest-btn" onclick="coachSuggest(this)">Hoe kan ik mijn FTP verhogen?</button>
+            <button class="coach-suggest-btn" onclick="coachSuggest(this)">Wat moet ik eten voor een HIM?</button>
+            <button class="coach-suggest-btn" onclick="coachSuggest(this)">Hoe herstel ik sneller?</button>
+            <button class="coach-suggest-btn" onclick="coachSuggest(this)">Wat is mijn zwakste discipline?</button>
+          </div>
+        </div>
+        <div id="coach-messages"></div>
+        <div class="coach-input-row">
+          <textarea id="coach-input" class="coach-textarea" placeholder="Stel een vraag aan je coach…" rows="1"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoachMessage()}"
+            oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+          <button class="btn btn-primary" id="coach-send-btn" onclick="sendCoachMessage()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="16" height="16"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -2940,6 +3050,7 @@ function fmtPaceFromMps(mps) {
 }
 
 function renderActivities() {
+  renderVolumeChart();
   const list = document.getElementById('activities-list');
   if (!ACTIVITIES.length) {
     const hasStrava = PROFILE?.strava_refresh_token || PROFILE?.strava_access_token;
@@ -2970,6 +3081,74 @@ function renderActivities() {
         <span class="act-chevron">›</span>
       </div>`;
   }).join('');
+}
+
+// ── WEEKLY VOLUME CHART ────────────────────────────────────
+let _volumeChart = null;
+function renderVolumeChart() {
+  const card = document.getElementById('volume-chart-card');
+  if (!ACTIVITIES.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  // Group by ISO week (Mon-based)
+  const weekMap = {};
+  ACTIVITIES.forEach(a => {
+    if (!a.date || !a.distance) return;
+    const d = new Date(a.date);
+    // Monday of that week
+    const day = d.getDay(); // 0=Sun
+    const diff = (day === 0 ? -6 : 1 - day);
+    const mon = new Date(d); mon.setDate(d.getDate() + diff);
+    const key = mon.toISOString().slice(0, 10);
+    if (!weekMap[key]) weekMap[key] = { swim: 0, bike: 0, run: 0 };
+    const km = a.distance / 1000;
+    if (a.type === 'Swim') weekMap[key].swim += km;
+    else if (a.type === 'Ride') weekMap[key].bike += km;
+    else if (a.type === 'Run')  weekMap[key].run  += km;
+  });
+
+  // Last 12 weeks sorted
+  const keys = Object.keys(weekMap).sort().slice(-12);
+  const labels = keys.map(k => {
+    const d = new Date(k);
+    return `${d.getDate()}/${d.getMonth()+1}`;
+  });
+
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const gridColor = isLight ? 'rgba(0,0,0,.07)' : 'rgba(255,255,255,.06)';
+  const tickClr   = isLight ? '#94a3b8' : '#64748b';
+
+  const ctx = document.getElementById('chart-volume')?.getContext('2d');
+  if (!ctx) return;
+  if (_volumeChart) { _volumeChart.destroy(); _volumeChart = null; }
+
+  _volumeChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Zwem', data: keys.map(k => +weekMap[k].swim.toFixed(2)), backgroundColor: '#06b6d4', borderRadius: 3, stack: 'vol' },
+        { label: 'Fiets', data: keys.map(k => +weekMap[k].bike.toFixed(2)), backgroundColor: '#3b82f6', borderRadius: 3, stack: 'vol' },
+        { label: 'Loop',  data: keys.map(k => +weekMap[k].run.toFixed(2)),  backgroundColor: '#22c55e', borderRadius: 3, stack: 'vol' },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#17202a', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
+          titleColor: '#e2e8f0', bodyColor: '#94a3b8', cornerRadius: 8, padding: 10,
+          callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw} km` }
+        }
+      },
+      scales: {
+        x: { stacked: true, grid: { color: gridColor }, ticks: { color: tickClr, font: { size: 10 } } },
+        y: { stacked: true, grid: { color: gridColor }, ticks: { color: tickClr, font: { size: 10 } },
+             title: { display: false } }
+      }
+    }
+  });
 }
 
 // ── ACTIVITY DETAIL ────────────────────────────────────────
@@ -3931,7 +4110,7 @@ function switchTab(name) {
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('#topbar nav button').forEach(b => b.classList.remove('active'));
   document.getElementById(`tab-${name}`)?.classList.add('active');
-  const idx = { plan:0, activities:1, events:2, injuries:3, health:4, profile:5 }[name];
+  const idx = { plan:0, activities:1, events:2, injuries:3, health:4, profile:5, coach:6 }[name];
   document.querySelectorAll('#topbar nav button')[idx]?.classList.add('active');
 }
 
@@ -4955,6 +5134,109 @@ function openChecklistModal(evt) {
 
   document.getElementById('checklist-body').innerHTML = html;
   openModal('checklist-modal');
+}
+
+// ── AI COACH ──────────────────────────────────────────────────
+let COACH_MESSAGES = []; // { role: 'user'|'assistant', content: string }
+
+function buildCoachContext() {
+  return {
+    profile: PROFILE,
+    events: EVENTS,
+    injuries: INJURIES,
+    health: HEALTH.slice(0, 3),
+    recentActivities: ACTIVITIES.slice(0, 10),
+    weekReflections: REFLECTIONS.slice(0, 3),
+  };
+}
+
+function renderCoachMessages() {
+  const el = document.getElementById('coach-messages');
+  if (!el) return;
+  if (!COACH_MESSAGES.length) { el.innerHTML = ''; return; }
+  // Hide intro card once there are messages
+  const intro = document.querySelector('.coach-intro');
+  if (intro) intro.style.display = 'none';
+  el.innerHTML = COACH_MESSAGES.map(m => {
+    const isUser = m.role === 'user';
+    const avatar = isUser
+      ? `<div class="coach-avatar">${(PROFILE?.display_name || 'J').charAt(0).toUpperCase()}</div>`
+      : `<div class="coach-avatar">🤖</div>`;
+    return `
+      <div class="coach-msg ${m.role}">
+        ${avatar}
+        <div class="coach-bubble">${escHtml(m.content)}</div>
+      </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function coachSuggest(btn) {
+  const input = document.getElementById('coach-input');
+  if (input) { input.value = btn.textContent; input.focus(); }
+}
+
+function clearCoachChat() {
+  COACH_MESSAGES = [];
+  const el = document.getElementById('coach-messages');
+  if (el) el.innerHTML = '';
+  const intro = document.querySelector('.coach-intro');
+  if (intro) intro.style.display = '';
+}
+
+async function sendCoachMessage() {
+  const input = document.getElementById('coach-input');
+  const sendBtn = document.getElementById('coach-send-btn');
+  const text = input?.value.trim();
+  if (!text || !ACCESS_TOKEN) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  COACH_MESSAGES.push({ role: 'user', content: text });
+  renderCoachMessages();
+
+  // Typing indicator
+  const msgEl = document.getElementById('coach-messages');
+  const typingId = 'coach-typing-' + Date.now();
+  msgEl.insertAdjacentHTML('beforeend', `
+    <div class="coach-msg assistant" id="${typingId}">
+      <div class="coach-avatar">🤖</div>
+      <div class="coach-bubble"><div class="coach-typing"><span></span><span></span><span></span></div></div>
+    </div>`);
+  msgEl.scrollTop = msgEl.scrollHeight;
+  sendBtn.disabled = true;
+
+  try {
+    const res = await fetch('/api/ai-coach', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        messages: COACH_MESSAGES,
+        context: buildCoachContext(),
+      }),
+    });
+    const data = await res.json();
+    document.getElementById(typingId)?.remove();
+    if (data.ok && data.reply) {
+      COACH_MESSAGES.push({ role: 'assistant', content: data.reply });
+    } else {
+      COACH_MESSAGES.push({ role: 'assistant', content: data.error || 'Er ging iets mis. Probeer opnieuw.' });
+    }
+  } catch (e) {
+    document.getElementById(typingId)?.remove();
+    COACH_MESSAGES.push({ role: 'assistant', content: 'Verbindingsfout: ' + e.message });
+  }
+
+  sendBtn.disabled = false;
+  renderCoachMessages();
 }
 </script>
 </body>
