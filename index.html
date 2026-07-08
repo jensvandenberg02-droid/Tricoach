@@ -1222,27 +1222,39 @@ a { color: var(--accent); text-decoration: none; }
   </div>
 </div>
 
-<!-- Injury Modal -->
+<!-- Injury / Condition Modal -->
 <div class="modal-overlay" id="injury-modal">
   <div class="modal">
-    <h3 id="injury-modal-title">Blessure melden</h3>
+    <h3 id="injury-modal-title">Klacht melden</h3>
     <input type="hidden" id="inj-id">
-    <div class="form-group"><label>Naam / beschrijving</label><input class="form-control" id="inj-name" placeholder="ITB syndroom links"></div>
-    <div class="form-group"><label>Lichaamsdelen</label>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px" id="bodyparts-grid"></div>
+
+    <div class="form-group">
+      <label>Type klacht</label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px" id="condition-cat-grid"></div>
     </div>
-    <div class="form-group"><label>Ernst</label>
+
+    <div class="form-group"><label>Naam / beschrijving</label>
+      <input class="form-control" id="inj-name" placeholder="bv. Kniepijn links, griep, overtraind gevoel…">
+    </div>
+
+    <div class="form-group" id="bodyparts-group">
+      <label>Lichaamsdeel(en) <span style="color:var(--t3);font-weight:400">(optioneel)</span></label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px" id="bodyparts-grid"></div>
+    </div>
+
+    <div class="form-group"><label>Impact op training</label>
       <select class="form-control" id="inj-severity">
-        <option value="mild">Licht — volume verlagen</option>
-        <option value="moderate">Matig — alternatieve training</option>
-        <option value="severe">Ernstig — volledig rust</option>
+        <option value="mild">Licht — volume -30%, intensiteit bewaken</option>
+        <option value="moderate">Matig — intensiteit schrappen, alternatieve training</option>
+        <option value="severe">Zwaar — volledig rust</option>
       </select>
     </div>
+
     <div class="form-row">
       <div class="form-group"><label>Startdatum</label><input class="form-control" id="inj-start" type="date"></div>
-      <div class="form-group"><label>Einddatum (leeg = lopend)</label><input class="form-control" id="inj-end" type="date"></div>
+      <div class="form-group"><label>Verwacht herstel</label><input class="form-control" id="inj-end" type="date"></div>
     </div>
-    <div class="form-group"><label>Notities</label><textarea class="form-control" id="inj-notes" rows="2"></textarea></div>
+    <div class="form-group"><label>Notities</label><textarea class="form-control" id="inj-notes" rows="2" placeholder="Hoe voel je je? Wat merk je?"></textarea></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('injury-modal')">Annuleer</button>
       <button class="btn btn-primary" onclick="saveInjury()">Opslaan</button>
@@ -2330,30 +2342,91 @@ function applyInjuries(sessions, injuries, weekDate) {
   const checkDate = weekDate
     ? (weekDate instanceof Date ? weekDate : new Date(weekDate)).toISOString().slice(0, 10)
     : new Date().toISOString().slice(0, 10);
-  // Een blessure is actief in deze week als:
-  //   start_date <= checkDate EN (geen end_date OF end_date >= checkDate)
   const active = injuries.filter(inj =>
     inj.start_date <= checkDate && (!inj.end_date || inj.end_date >= checkDate)
   );
+  if (!active.length) return sessions;
+
   return sessions.map(s => {
     let modified = { ...s };
-    for (const inj of active) {
-      const parts  = inj.body_parts || [];
-      const runInjured  = parts.some(p => ['knee','ankle','hip','itband','achilles','calf','hamstring'].includes(p));
-      const swimInjured = parts.some(p => ['shoulder'].includes(p));
-      const anyInjured  = parts.length > 0;
 
-      if (inj.severity === 'severe' && anyInjured) {
-        modified = { ...s, type: 'rest', name: `[RUST] ${s.name}`, meta: `Blessure: ${inj.name}`, desc: 'Herstel prioriteit' };
-      } else if (inj.severity === 'moderate') {
-        if (s.type === 'run' && runInjured) {
-          modified = { ...s, type: 'bike', name: `[AANGEPAST] ${s.name}`, meta: `Fiets i.p.v. lopen — ${inj.name}`, desc: 'Alternatieve training' };
-        } else if (s.type === 'swim' && swimInjured) {
-          modified = { ...s, type: 'bike', name: `[AANGEPAST] ${s.name}`, meta: `Fiets i.p.v. zwemmen — ${inj.name}`, desc: 'Alternatieve training' };
+    for (const inj of active) {
+      const cat   = inj.category || 'injury';
+      const parts = inj.body_parts || [];
+      const sev   = inj.severity || 'mild';
+
+      const runParts  = ['knee','ankle','hip','itband','achilles','calf','hamstring','quad','shin','foot','glute','groin'];
+      const swimParts = ['shoulder','elbow','wrist'];
+      const runInjured  = parts.some(p => runParts.includes(p)) || parts.includes('general');
+      const swimInjured = parts.some(p => swimParts.includes(p)) || parts.includes('general');
+      const isHard = /interval|tempo|snelheid|VO2|sweetspot|drempel/i.test(s.name + s.meta);
+
+      // ── BLESSURE (specifiek lichaamsdeel) ─────────────────────────────────
+      if (cat === 'injury') {
+        if (sev === 'severe') {
+          modified = { ...s, type:'rest', name:`[RUST] ${s.name}`, meta:`Blessure: ${inj.name}`, desc:'Volledig herstel — geen training' };
+        } else if (sev === 'moderate') {
+          if (s.type === 'run' && runInjured)
+            modified = { ...s, type:'bike', name:`[FIETS] ${s.name}`, meta:`Fiets i.p.v. lopen — ${inj.name}`, desc:'Belastingvrije alternatieve training' };
+          else if (s.type === 'swim' && swimInjured)
+            modified = { ...s, type:'bike', name:`[FIETS] ${s.name}`, meta:`Fiets i.p.v. zwemmen — ${inj.name}`, desc:'Schouder/arm ontzien' };
+        } else if (sev === 'mild') {
+          if ((s.type === 'run' && runInjured) || (s.type === 'swim' && swimInjured))
+            modified = { ...s, name:`${s.name} ⚠️`, meta:`${s.meta} — volume -30%`, desc:`Lichte blessure: ${inj.name}` };
         }
-      } else if (inj.severity === 'mild') {
-        if ((s.type === 'run' && runInjured) || (s.type === 'swim' && swimInjured)) {
-          modified = { ...s, name: `${s.name} ⚠️`, meta: `${s.meta} (volume -30%)`, desc: `Lichte blessure: ${inj.name}` };
+      }
+
+      // ── FYSIEKE VERMOEIDHEID ───────────────────────────────────────────────
+      // Zwaar: volledige rust. Matig: alle intensieve sessies → Z2. Licht: intensity -1 zone.
+      else if (cat === 'fatigue') {
+        if (sev === 'severe') {
+          modified = { ...s, type:'rest', name:`[RUST] ${s.name}`, meta:`Vermoeidheid: ${inj.name}`, desc:'Volledig herstel prioriteit' };
+        } else if (sev === 'moderate' && isHard) {
+          modified = { ...s, name:`[Z2] ${s.name}`, meta:`Duurtraining Z2 (i.p.v. intensief) — ${inj.name}`, desc:'Intensiteit vervangen door Z2 vanwege vermoeidheid' };
+        } else if (sev === 'mild' && isHard) {
+          modified = { ...s, name:`${s.name} ⚠️`, meta:`${s.meta} — intensiteit -1 zone`, desc:`Fysieke vermoeidheid: ${inj.name}` };
+        }
+      }
+
+      // ── OVERREACHING ──────────────────────────────────────────────────────
+      // Alle zware sessies → Z1/Z2, volume laag houden
+      else if (cat === 'overreach') {
+        if (sev === 'severe') {
+          modified = { ...s, type:'rest', name:`[RUST] ${s.name}`, meta:`Overreaching: ${inj.name}`, desc:'Verplichte rustdag — lichaam vraagt om herstel' };
+        } else if (isHard) {
+          modified = { ...s, name:`[Z1] ${s.name}`, meta:`Heel rustig Z1 — overreaching protocol: ${inj.name}`, desc:'Geen intensiteit bij overreaching' };
+        }
+      }
+
+      // ── ZIEKTE ────────────────────────────────────────────────────────────
+      // Koorts/griep = altijd rust. Verkoudheid mild = lichte sessies OK.
+      else if (cat === 'illness') {
+        if (sev === 'severe' || sev === 'moderate') {
+          modified = { ...s, type:'rest', name:`[RUST] ${s.name}`, meta:`Ziekte: ${inj.name}`, desc:'Herstel volledig — geen training bij koorts of acute ziekte' };
+        } else if (sev === 'mild' && isHard) {
+          modified = { ...s, name:`[RUSTIG] ${s.name}`, meta:`Licht Z1 (verkoudheid) — ${inj.name}`, desc:'Geen intensiteit bij ziekte' };
+        }
+      }
+
+      // ── SPIERPIJN DOMS ────────────────────────────────────────────────────
+      // Loopsessies vervangen door fiets (minder impact). Zwemmen OK.
+      else if (cat === 'doms') {
+        if (sev === 'severe') {
+          modified = { ...s, type:'rest', name:`[RUST] ${s.name}`, meta:`Ernstige DOMS: ${inj.name}`, desc:'Te pijnlijk om te trainen' };
+        } else if (s.type === 'run' && sev === 'moderate') {
+          modified = { ...s, type:'bike', name:`[FIETS] ${s.name}`, meta:`Fiets i.p.v. lopen — spierpijn: ${inj.name}`, desc:'Lage impact alternatief bij DOMS' };
+        } else if (isHard && sev !== 'mild') {
+          modified = { ...s, name:`${s.name} ⚠️`, meta:`${s.meta} — volume -30%`, desc:`DOMS: ${inj.name}` };
+        }
+      }
+
+      // ── MENTALE VERMOEIDHEID ──────────────────────────────────────────────
+      // Fysiek train je door, maar intensiteit verlagen helpt herstel.
+      else if (cat === 'mental') {
+        if (sev === 'severe') {
+          modified = { ...s, type:'rest', name:`[RUST] ${s.name}`, meta:`Mentale overbelasting: ${inj.name}`, desc:'Rust ook mentaal — geen verplichte training vandaag' };
+        } else if (isHard && sev === 'moderate') {
+          modified = { ...s, name:`[RUSTIG] ${s.name}`, meta:`Pleziertraining Z1-Z2 — ${inj.name}`, desc:'Mentale vermoeidheid: focus op plezier, niet op prestatie' };
         }
       }
     }
@@ -3240,8 +3313,34 @@ async function deleteEvent(id) {
 }
 
 // ── INJURIES ──────────────────────────────────────────────────
-const BODY_PARTS = ['knee','ankle','hip','itband','achilles','calf','hamstring','shoulder','back'];
-const BODY_LABELS = { knee:'Knie', ankle:'Enkel', hip:'Heup', itband:'ITB', achilles:'Achilles', calf:'Kuit', hamstring:'Hamstring', shoulder:'Schouder', back:'Rug' };
+const BODY_PARTS = [
+  'knee','ankle','hip','itband','achilles','calf','hamstring',
+  'quad','shin','foot','glute','groin',
+  'shoulder','elbow','wrist','neck','back','upperback',
+  'general',
+];
+const BODY_LABELS = {
+  // Onderste ledematen
+  knee:'Knie', ankle:'Enkel', hip:'Heup', itband:'ITB/Lopersknie',
+  achilles:'Achillespees', calf:'Kuit', hamstring:'Hamstring',
+  quad:'Quadriceps', shin:'Scheenbeen', foot:'Voet/Fasciitis',
+  glute:'Bil/Gluteus', groin:'Lies',
+  // Bovenste ledematen
+  shoulder:'Schouder', elbow:'Elleboog', wrist:'Pols',
+  neck:'Nek', back:'Lage rug', upperback:'Bovenrug',
+  // Algemeen
+  general:'Heel lichaam',
+};
+
+// Klacht-categorieën met icoon, kleur en standaard plan-aanpassing
+const CONDITION_CATS = {
+  injury:    { label:'Blessure',           icon:'🩹', color:'var(--red)',    desc:'Specifieke pijn of beschadiging' },
+  fatigue:   { label:'Fysieke vermoeidheid', icon:'😴', color:'var(--orange)', desc:'Zware benen, algehele vermoeidheid' },
+  overreach: { label:'Overreaching',        icon:'🔥', color:'#f97316',      desc:'Opeenstapeling van trainingsbelasting' },
+  illness:   { label:'Ziekte',              icon:'🤒', color:'var(--purple)', desc:'Verkoudheid, griep, koorts' },
+  doms:      { label:'Spierpijn (DOMS)',    icon:'💪', color:'var(--blue)',   desc:'Spierpijn na zware training' },
+  mental:    { label:'Mentale vermoeidheid',icon:'🧠', color:'#818cf8',      desc:'Motivatie laag, mentale belasting' },
+};
 
 function renderInjuriesTab() {
   const list = document.getElementById('injuries-list');
@@ -3251,15 +3350,23 @@ function renderInjuriesTab() {
   }
   list.innerHTML = INJURIES.map(inj => {
     const active = !inj.end_date || inj.end_date >= new Date().toISOString().slice(0,10);
+    const cat    = CONDITION_CATS[inj.category] || CONDITION_CATS.injury;
+    const parts  = (inj.body_parts || []).map(p => BODY_LABELS[p] || p).join(', ');
+    const sevLabel = { mild:'Licht', moderate:'Matig', severe:'Zwaar' }[inj.severity] || inj.severity;
     return `
       <div class="injury-row">
-        <div class="severity-dot sev-${inj.severity}"></div>
+        <div style="font-size:22px;line-height:1;flex-shrink:0">${cat.icon}</div>
         <div class="injury-info">
-          <div class="injury-name">${inj.name} ${active ? '' : '<span style="color:var(--t3);font-size:12px">(hersteld)</span>'}</div>
-          <div class="injury-sub">${(inj.body_parts || []).map(p => BODY_LABELS[p] || p).join(', ')} · ${inj.severity}</div>
-          <div class="injury-sub">${inj.start_date} ${inj.end_date ? '→ ' + inj.end_date : '→ heden'}</div>
+          <div class="injury-name" style="display:flex;align-items:center;gap:8px">
+            ${inj.name}
+            <span style="font-size:11px;font-weight:700;color:${cat.color};background:${cat.color}22;border-radius:4px;padding:1px 6px">${cat.label}</span>
+            ${active ? '' : '<span style="color:var(--t3);font-size:12px">(hersteld)</span>'}
+          </div>
+          ${parts ? `<div class="injury-sub">${parts}</div>` : ''}
+          <div class="injury-sub">${sevLabel} · ${inj.start_date}${inj.end_date ? ' → ' + inj.end_date : ' → heden'}</div>
+          ${inj.notes ? `<div class="injury-sub" style="color:var(--t3)">${inj.notes}</div>` : ''}
         </div>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="btn btn-ghost btn-sm" onclick="openInjuryModal(${JSON.stringify(inj).split('"').join('&quot;')})">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="deleteInjury('${inj.id}')">✕</button>
         </div>
@@ -3268,15 +3375,23 @@ function renderInjuriesTab() {
 }
 
 function openInjuryModal(inj) {
-  // Build body parts checkboxes
-  const grid = document.getElementById('bodyparts-grid');
-  grid.innerHTML = BODY_PARTS.map(p => `
-    <label style="display:flex;align-items:center;gap:5px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px">
+  const currentCat = inj?.category || 'injury';
+
+  // Categorie knoppen
+  document.getElementById('condition-cat-grid').innerHTML = Object.entries(CONDITION_CATS).map(([key, c]) => `
+    <label style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:2px solid ${key === currentCat ? c.color : 'var(--border)'};border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600;transition:border-color .15s" id="cat-lbl-${key}">
+      <input type="radio" name="inj-category" value="${key}" ${key === currentCat ? 'checked' : ''} onchange="onCategoryChange(this)" style="display:none">
+      ${c.icon} ${c.label}
+    </label>`).join('');
+
+  // Lichaamsdelen
+  document.getElementById('bodyparts-grid').innerHTML = BODY_PARTS.map(p => `
+    <label style="display:flex;align-items:center;gap:5px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:12px">
       <input type="checkbox" name="bp" value="${p}" ${(inj?.body_parts || []).includes(p) ? 'checked' : ''}>
       ${BODY_LABELS[p]}
     </label>`).join('');
 
-  document.getElementById('injury-modal-title').textContent = inj ? 'Blessure bewerken' : 'Blessure melden';
+  document.getElementById('injury-modal-title').textContent = inj ? 'Klacht bewerken' : 'Klacht melden';
   document.getElementById('inj-id').value       = inj?.id || '';
   document.getElementById('inj-name').value     = inj?.name || '';
   document.getElementById('inj-severity').value = inj?.severity || 'mild';
@@ -3286,11 +3401,21 @@ function openInjuryModal(inj) {
   openModal('injury-modal');
 }
 
+function onCategoryChange(radio) {
+  // Update border highlight op categorie-knoppen
+  Object.keys(CONDITION_CATS).forEach(key => {
+    const lbl = document.getElementById('cat-lbl-' + key);
+    if (lbl) lbl.style.borderColor = key === radio.value ? CONDITION_CATS[key].color : 'var(--border)';
+  });
+}
+
 async function saveInjury() {
-  const id    = document.getElementById('inj-id').value;
-  const parts = [...document.querySelectorAll('#bodyparts-grid input:checked')].map(i => i.value);
+  const id       = document.getElementById('inj-id').value;
+  const parts    = [...document.querySelectorAll('#bodyparts-grid input:checked')].map(i => i.value);
+  const catRadio = document.querySelector('input[name="inj-category"]:checked');
   const data  = {
     user_id:    USER.id,
+    category:   catRadio?.value || 'injury',
     name:       document.getElementById('inj-name').value.trim(),
     body_parts: parts,
     severity:   document.getElementById('inj-severity').value,
