@@ -1521,41 +1521,67 @@ function makeSessions(z, phase, type, weekNum) {
   const isBike = type === 'bike-race';
   const isSwim = type === 'swim-race';
 
-  const sessions = [];
+  // ── Herbruikbare garminStep helpers ─────────────────────────────────────────
+  const swimWarmup   = { kind:'warmup',   dist:400, desc:'400m easy opwarmen' };
+  const swimCooldown = { kind:'cooldown', dist:200, desc:'200m easy afkoelen' };
+  const runWarmup    = { kind:'warmup',   secs:600, desc:'10 min opwarmen Z1' };
+  const runCooldown  = { kind:'cooldown', secs:600, desc:'10 min afkoelen Z1' };
+  const bikeWarmup   = { kind:'warmup',   secs:600, desc:'10 min opwarmen Z1' };
+  const bikeCooldown = { kind:'cooldown', secs:600, desc:'10 min afkoelen Z1' };
 
-  // Vaste garminSteps helpers voor swim warmup/cooldown (afstandsgebaseerd)
-  const swimWarmup   = { kind: 'warmup',   dist: 400, desc: '400m easy' };
-  const swimCooldown = { kind: 'cooldown', dist: 200, desc: '200m easy' };
-  // Run/bike warmup/cooldown (tijdgebaseerd)
-  const runWarmup    = { kind: 'warmup',   secs: 600, desc: '10 min opwarmen' };
-  const runCooldown  = { kind: 'cooldown', secs: 600, desc: '10 min afkoelen' };
-
+  // ── HERSTELWEEK (geen intensiteit, laag volume) ──────────────────────────────
   if (phase === 'recovery') {
     return [
-      { day:'Di', type:'run',  name:'Herstelloop',  meta:'30 min Z1',   desc:'Licht herstel, hartslag laag houden',
-        garminSteps: [ runWarmup, { kind:'interval', secs:1200, desc:'20 min Z1' }, runCooldown ] },
-      { day:'Do', type:'bike', name:'Losse toer',   meta:'45 min Z1',   desc:'Benen uitdraaien na wedstrijd',
-        garminSteps: [ runWarmup, { kind:'interval', secs:1500, desc:'25 min Z1' }, runCooldown ] },
-      { day:'Za', type:'swim', name:'Zwem herstel', meta:'1500m easy',  desc:'Techniek focus, geen druk',
-        garminSteps: [ swimWarmup, { kind:'interval', dist:900, desc:'900m easy' }, swimCooldown ] },
+      { day:'Ma', type:'rest', name:'Rust', meta:'', desc:'Volledig herstel' },
+      { day:'Di', type:'run',  name:'Herstelloop', meta:'25 min Z1',
+        desc:'Benen losmaken — hartslag laag houden, geen druk',
+        garminSteps: [ runWarmup, { kind:'interval', secs:600, desc:'10 min Z1' }, runCooldown ] },
+      { day:'Wo', type:'bike', name:'Losse toer', meta:'45 min Z1',
+        desc:'Benen uitdraaien, volledig herstel',
+        garminSteps: [ bikeWarmup, { kind:'interval', secs:1500, desc:'25 min Z1' }, bikeCooldown ] },
+      { day:'Do', type:'rest', name:'Rust', meta:'', desc:'' },
+      { day:'Vr', type:'str',  name:'Lichte mobiliteit', meta:'20 min', desc:'Stretchen, foam rolling, geen kracht' },
+      ...( !isDu && !isRun && !isBike ? [
+        { day:'Za', type:'swim', name:'Herstelzwem', meta:'1200m easy',
+          desc:'Techniek focus, geen druk',
+          garminSteps: [ swimWarmup, { kind:'interval', dist:800, desc:'800m easy' }, swimCooldown ] },
+      ] : [
+        { day:'Za', type:'run', name:'Ontspanningsduurloop', meta:`35 min Z1 @ ${z.runEasy}/km`,
+          desc:'Rustig uitlopen',
+          garminSteps: [ runWarmup, { kind:'interval', secs:900, desc:`15 min Z1 @ ${z.runEasy}/km` }, runCooldown ] },
+      ]),
+      { day:'Zo', type:'rest', name:'Rust', meta:'', desc:'' },
     ];
   }
 
+  // ── TAPER (volume flink omlaag, snelheid vasthouden) ─────────────────────────
   if (phase === 'taper') {
     const s = [
-      { day:'Ma', type:'rest', name:'Rust',           meta:'', desc:'' },
-      { day:'Di', type:'run',  name:'Activatie loop', meta:'20 min + 4×100m strides', desc:'Benen wakker houden',
+      { day:'Ma', type:'rest', name:'Rust', meta:'', desc:'Herstel van vorige week' },
+      { day:'Di', type:'run',  name:'Activatieloop', meta:`20 min + 4×100m strides`,
+        desc:'Benen wakker houden, volume laag',
         garminSteps: [
           runWarmup,
+          { kind:'interval', secs:600, desc:'10 min Z2' },
           { kind:'repeat', sets:4, steps:[
             { kind:'interval', dist:100, desc:'100m stride' },
-            { kind:'recovery', secs:60,  desc:'1 min herstel' },
+            { kind:'recovery', secs:60,  desc:'60s wandelen' },
           ]},
           runCooldown,
         ]},
-      { day:'Wo', type:'bike', name:'Korte activatie', meta:'40 min, laatste 10 min Z3', desc:'Scherp blijven',
-        garminSteps: [ runWarmup, { kind:'interval', secs:1200, desc:'20 min Z2' }, { kind:'interval', secs:600, desc:'10 min Z3' }, runCooldown ] },
-      { day:'Do', type:'swim', name:'Race-pace zwem',  meta:'1200m met race-pace segmenten', desc:'Vertrouwen opbouwen',
+      { day:'Wo', type:'bike', name:'Korte activatierit', meta:`40 min, 3×2 min @ ${z.z4}W`,
+        desc:'Scherp blijven, lage belasting',
+        garminSteps: [
+          bikeWarmup,
+          { kind:'interval', secs:1200, desc:'20 min Z2' },
+          { kind:'repeat', sets:3, steps:[
+            { kind:'interval', secs:120, desc:`2 min @ ${z.z4}W` },
+            { kind:'recovery', secs:180, desc:'3 min Z1' },
+          ]},
+          bikeCooldown,
+        ]},
+      { day:'Do', type:'swim', name:'Race-pace zwem', meta:'1200m met race-pace segmenten',
+        desc:'Vertrouwen opbouwen, geen vermoeidheid',
         garminSteps: [
           swimWarmup,
           { kind:'repeat', sets:4, steps:[
@@ -1564,202 +1590,418 @@ function makeSessions(z, phase, type, weekNum) {
           ]},
           swimCooldown,
         ]},
-      { day:'Vr', type:'rest', name:'Rust',           meta:'', desc:'Poten omhoog' },
-      { day:'Za', type:'run',  name:'Korte activatie', meta:'15 min Z2 + strides', desc:'',
-        garminSteps: [ { kind:'warmup', secs:300, desc:'5 min opwarmen' }, { kind:'interval', secs:600, desc:'10 min Z2' }, { kind:'cooldown', secs:300, desc:'5 min afkoelen' } ] },
-      { day:'Zo', type:'rest', name:'Race dag!',       meta:'', desc:'Geniet ervan' },
+      { day:'Vr', type:'rest', name:'Rust', meta:'', desc:'Poten omhoog, hydrateren' },
+      { day:'Za', type:'run',  name:'Race-prep loop', meta:`20 min + 4×100m strides`,
+        desc:'Benen activeren — niks uitputten',
+        garminSteps: [
+          { kind:'warmup',  secs:300, desc:'5 min inlopen' },
+          { kind:'interval', secs:600, desc:'10 min Z1' },
+          { kind:'repeat', sets:4, steps:[
+            { kind:'interval', dist:100, desc:'100m stride' },
+            { kind:'recovery', secs:60, desc:'60s wandelen' },
+          ]},
+          { kind:'cooldown', secs:300, desc:'5 min uitlopen' },
+        ]},
+      { day:'Zo', type:'rest', name:'Race dag!', meta:'🏁 Succes!', desc:'Warm goed op, rij je eigen plan' },
     ];
-    return isTri ? s : s.filter(x => x.type !== 'swim');
+    return (isTri) ? s : s.filter(x => x.type !== 'swim' || x.day !== 'Do');
   }
 
-  // ── Base / Build / Peak ──────────────────────────────────────────────────────
+  // ── BASE / BUILD / PEAK ──────────────────────────────────────────────────────
+  const sessions = [];
+
   if (isTri || isDu) {
-    sessions.push({ day:'Ma', type:'rest', name:'Rust / mobiliteit', meta:'', desc:'' });
+    // PERIODISATIE REGELS:
+    // Ma: Rust — herstel van het weekend
+    // Di: Zwem (laag impact) — goede kwaliteitssessie vroeg in de week
+    // Wo: Fiets Z2 duur OF sweetspot (build/peak) + korte brick-loop (build/peak)
+    // Do: Intervalloop of tempoloop — harde lopsessie, NIET op woensdag (na brick)
+    // Vr: Kracht — lichte dag voor het weekend
+    // Za: Lange fietsrit — grootste volume dag
+    // Zo: KORTE herstelloop Z1 — actief herstel na lange fiets, NOOIT lang lopen
 
-    // Di run — intervalloop (peak) of tempoloop (base/build)
-    sessions.push({
-      day:'Di', type:'run',
-      name: phase==='peak' ? 'Interval loop' : 'Tempoloop',
-      meta: phase==='peak' ? `6×800m @ ${z.runFast}/km` : `6 km @ ${z.runTempo}/km`,
-      desc:'Aerobe capaciteit',
-      garminSteps: phase==='peak' ? [
-        runWarmup,
-        { kind:'repeat', sets:6, steps:[
-          { kind:'interval', dist:800, desc:`800m @ ${z.runFast}/km` },
-          { kind:'recovery', secs:120, desc:'2 min herstel' },
-        ]},
-        runCooldown,
-      ] : [
-        runWarmup,
-        { kind:'interval', secs:2400, desc:`20 min @ ${z.runTempo}/km` },
-        runCooldown,
-      ],
-    });
+    sessions.push({ day:'Ma', type:'rest', name:'Rust', meta:'', desc:'Actief herstel van het weekend — mobiliteit en stretchen' });
 
-    if (!isDu) sessions.push({
-      day:'Di', type:'swim', name:'Techniekzwem', meta:'2000m drill + pull',
-      desc:'Arm positie en rotatie', offset:true,
-      garminSteps: [
-        swimWarmup,
-        { kind:'repeat', sets:4, steps:[
-          { kind:'interval', dist:200, desc:'200m drill' },
-          { kind:'recovery', dist:100, desc:'100m easy' },
-        ]},
-        { kind:'repeat', sets:4, steps:[
-          { kind:'interval', dist:100, desc:'100m pull buoy' },
-          { kind:'recovery', secs:20,  desc:'20s rust' },
-        ]},
-        swimCooldown,
-      ],
-    });
+    // Di: Zwem (laag impact, ideaal voor vroeg in de week)
+    if (!isDu) {
+      if (phase === 'base') {
+        sessions.push({
+          day:'Di', type:'swim', name:'Techniekzwem',
+          meta:'2000m — drill + duur', desc:'Slagefficiëntie en watergevoel opbouwen',
+          garminSteps: [
+            swimWarmup,
+            { kind:'repeat', sets:4, steps:[
+              { kind:'interval', dist:200, desc:'200m drill (eenarmig, finger drag)' },
+              { kind:'recovery', dist:100, desc:'100m easy' },
+            ]},
+            { kind:'repeat', sets:4, steps:[
+              { kind:'interval', dist:100, desc:`100m @ ${z.swimTempo}/100m` },
+              { kind:'recovery', secs:20,  desc:'20s rust' },
+            ]},
+            swimCooldown,
+          ],
+        });
+      } else if (phase === 'build') {
+        sessions.push({
+          day:'Di', type:'swim', name:'Drempelzwem',
+          meta:`3×400m @ ${z.swimTempo}/100m`, desc:'Melkzuurdrempel verhogen',
+          garminSteps: [
+            swimWarmup,
+            { kind:'repeat', sets:3, steps:[
+              { kind:'interval', dist:400, desc:`400m @ ${z.swimTempo}/100m` },
+              { kind:'recovery', secs:60,  desc:'60s rust' },
+            ]},
+            swimCooldown,
+          ],
+        });
+      } else { // peak
+        sessions.push({
+          day:'Di', type:'swim', name:'VO₂max zwem',
+          meta:`8×100m sprint + 4×200m @ ${z.swimTempo}/100m`, desc:'Piek zwemintensiteit',
+          garminSteps: [
+            swimWarmup,
+            { kind:'repeat', sets:8, steps:[
+              { kind:'interval', dist:100, desc:'100m sprint' },
+              { kind:'recovery', secs:25,  desc:'25s rust' },
+            ]},
+            { kind:'recovery', dist:200, desc:'200m easy' },
+            { kind:'repeat', sets:4, steps:[
+              { kind:'interval', dist:200, desc:`200m @ ${z.swimTempo}/100m` },
+              { kind:'recovery', secs:30,  desc:'30s rust' },
+            ]},
+            swimCooldown,
+          ],
+        });
+      }
+    } else {
+      // Duathlon: Di is een tempo/intervalloop
+      sessions.push({
+        day:'Di', type:'run',
+        name: phase === 'base' ? 'Tempoloop' : 'Intervalloop',
+        meta: phase === 'base' ? `4 km @ ${z.runTempo}/km` : `6×800m @ ${z.runFast}/km`,
+        desc: phase === 'base' ? 'Aerobe drempeltraining' : 'VO₂max boost',
+        garminSteps: phase === 'base' ? [
+          runWarmup,
+          { kind:'interval', dist:4000, desc:`4 km @ ${z.runTempo}/km` },
+          runCooldown,
+        ] : [
+          runWarmup,
+          { kind:'repeat', sets:6, steps:[
+            { kind:'interval', dist:800, desc:`800m @ ${z.runFast}/km` },
+            { kind:'recovery', secs:120, desc:'2 min herstel' },
+          ]},
+          runCooldown,
+        ],
+      });
+    }
 
-    // Wo bike — sweetspot (peak) of endurance (base/build)
-    sessions.push({
-      day:'Wo', type:'bike',
-      name: phase==='peak' ? 'Sweetspot blokken' : 'Endurance rit',
-      meta: phase==='peak' ? `3×15 min @ ${z.z4}W` : `75 min @ ${z.z2}W`,
-      desc:'Basisuithoudingsvermogen',
-      garminSteps: phase==='peak' ? [
-        runWarmup,
-        { kind:'repeat', sets:3, steps:[
-          { kind:'interval', secs:900,  desc:`15 min @ ${z.z4}W` },
-          { kind:'recovery', secs:300,  desc:'5 min herstel' },
-        ]},
-        runCooldown,
-      ] : [
-        runWarmup,
-        { kind:'interval', secs:3300, desc:`55 min @ ${z.z2}W` },
-        runCooldown,
-      ],
-    });
+    // Wo: Fiets + brick-loop (build/peak) OF duurrit (base)
+    if (phase === 'base') {
+      sessions.push({
+        day:'Wo', type:'bike', name:'Duurrit Z2',
+        meta:`${weekNum > 6 ? 100 : 75} min Z2`, desc:'Aerobe basis fiets opbouwen',
+        garminSteps: [
+          bikeWarmup,
+          { kind:'interval', secs:(weekNum > 6 ? 4800 : 3300), desc:`${weekNum > 6 ? 80 : 55} min Z2` },
+          bikeCooldown,
+        ],
+      });
+    } else if (phase === 'build') {
+      sessions.push({
+        day:'Wo', type:'bike', name:'Sweetspot + brick-loop',
+        meta:`2×20 min @ ${z.z4}W → 15 min brick-loop`,
+        desc:'Drempelkracht + directe overgang naar lopen — race-gevoel trainen',
+        garminSteps: [
+          bikeWarmup,
+          { kind:'repeat', sets:2, steps:[
+            { kind:'interval', secs:1200, desc:`20 min @ ${z.z4}W sweetspot` },
+            { kind:'recovery', secs:300,  desc:'5 min Z1' },
+          ]},
+          { kind:'cooldown', secs:300, desc:'5 min afrijden' },
+          // Brick-loop direct erna
+          { kind:'interval', secs:900, desc:`15 min brick-loop @ ${z.runTempo}/km` },
+        ],
+      });
+    } else { // peak
+      sessions.push({
+        day:'Wo', type:'bike', name:'VO₂max fiets + brick-loop',
+        meta:`4×8 min @ ${z.z5}W → 20 min brick-loop`,
+        desc:'Maximale fietsvermogen, gevolgd door brick — piek race-specificiteit',
+        garminSteps: [
+          bikeWarmup,
+          { kind:'repeat', sets:4, steps:[
+            { kind:'interval', secs:480, desc:`8 min @ ${z.z5}W` },
+            { kind:'recovery', secs:240, desc:'4 min Z1' },
+          ]},
+          { kind:'cooldown', secs:300, desc:'5 min afrijden' },
+          { kind:'interval', secs:1200, desc:`20 min brick-loop @ ${z.runTempo}/km` },
+        ],
+      });
+    }
 
-    sessions.push({
-      day:'Do', type:'run', name:'Duurloop',
-      meta: phase==='base' ? '45 min Z2' : '55 min Z2', desc:'Aerobe basis',
-      garminSteps: [
-        runWarmup,
-        { kind:'interval', secs: phase==='base' ? 1500 : 2100, desc:`${phase==='base' ? '25' : '35'} min Z2` },
-        runCooldown,
-      ],
-    });
+    // Do: Intervalloop of tempoloop
+    // BEWUST op donderdag, NIET op dinsdag voor triatleten (zo staat zwem op di)
+    // → 48 uur na woensdag fiets/brick = voldoende herstel voor kwaliteitsloop
+    if (!isDu) {
+      if (phase === 'base') {
+        sessions.push({
+          day:'Do', type:'run', name:'Duurloop Z2',
+          meta:`45 min Z2 @ ${z.runEasy}/km`, desc:'Aerobe basis — rustig, hartslag laag houden',
+          garminSteps: [
+            runWarmup,
+            { kind:'interval', secs:1500, desc:`25 min Z2 @ ${z.runEasy}/km` },
+            runCooldown,
+          ],
+        });
+      } else if (phase === 'build') {
+        sessions.push({
+          day:'Do', type:'run', name:'Intervalloop',
+          meta:`6×800m @ ${z.runFast}/km`,
+          desc:'VO₂max training — harde lopsessie van de week, 48 uur herstel voor weekend',
+          garminSteps: [
+            runWarmup,
+            { kind:'repeat', sets:6, steps:[
+              { kind:'interval', dist:800, desc:`800m @ ${z.runFast}/km` },
+              { kind:'recovery', secs:120, desc:'2 min herstel' },
+            ]},
+            runCooldown,
+          ],
+        });
+      } else { // peak
+        sessions.push({
+          day:'Do', type:'run', name:'Tempoloop',
+          meta:`6 km @ ${z.runTempo}/km`,
+          desc:'Racespecifieke drempelintensiteit — loopt goed in combinatie met woensdag brick',
+          garminSteps: [
+            runWarmup,
+            { kind:'interval', dist:6000, desc:`6 km @ ${z.runTempo}/km` },
+            runCooldown,
+          ],
+        });
+      }
+    } else {
+      // Duathlon Do: Fiets (dag na Di run = andere sport = OK)
+      sessions.push({
+        day:'Do', type:'bike',
+        name: phase === 'base' ? 'Duurrit' : 'Sweetspot',
+        meta: phase === 'base' ? `75 min Z2` : `2×20 min @ ${z.z4}W`,
+        desc:'Fiets na loopdag — andere spiergroepen, geen conflict',
+        garminSteps: phase === 'base' ? [
+          bikeWarmup,
+          { kind:'interval', secs:3300, desc:'55 min Z2' },
+          bikeCooldown,
+        ] : [
+          bikeWarmup,
+          { kind:'repeat', sets:2, steps:[
+            { kind:'interval', secs:1200, desc:`20 min @ ${z.z4}W` },
+            { kind:'recovery', secs:300,  desc:'5 min Z1' },
+          ]},
+          bikeCooldown,
+        ],
+      });
+    }
 
-    if (!isDu) sessions.push({
-      day:'Do', type:'swim', name:'Drempel zwem',
-      meta:`3×400m @ ${z.swimTempo}/100m`, desc:'Melkzuurdrempel', offset:true,
-      garminSteps: [
-        swimWarmup,
-        { kind:'repeat', sets:3, steps:[
-          { kind:'interval', dist:400, desc:`400m @ ${z.swimTempo}/100m` },
-          { kind:'recovery', secs:60,  desc:'1 min rust' },
-        ]},
-        swimCooldown,
-      ],
-    });
+    sessions.push({ day:'Vr', type:'str', name:'Kracht + core', meta:'30 min', desc:'Squat, deadlift, plank, glutes — lichte dag voor het weekend' });
 
-    sessions.push({ day:'Vr', type:'str',  name:'Kracht + core', meta:'30 min', desc:'Squat, deadlift, plank' });
+    // Za: Lange fietsrit — grootste sessie van de week
+    const bikeHours = phase === 'base' ? (weekNum > 8 ? 2.5 : 2)
+                    : phase === 'build' ? (weekNum > 10 ? 3.5 : 3)
+                    : (weekNum > 12 ? 4 : 3.5);
     sessions.push({
       day:'Za', type:'bike', name:'Lange rit',
-      meta: phase==='peak' ? `${weekNum > 10 ? 4 : 3} uur endurance` : `${weekNum > 8 ? 3 : 2}h Z2`,
-      desc:'Vetverbranding + duurvermogen',
+      meta:`${bikeHours} uur Z2`, desc:'Grootste volume dag — vetverbranding en duurvermogen opbouwen',
       garminSteps: [
-        runWarmup,
-        { kind:'interval', secs: (phase==='peak' ? (weekNum > 10 ? 4 : 3) : (weekNum > 8 ? 3 : 2)) * 3600 - 1200, desc:'Endurance Z2' },
-        runCooldown,
+        bikeWarmup,
+        { kind:'interval', secs: Math.round((bikeHours * 3600) - 1200), desc:`${bikeHours} uur Z2 endurance` },
+        bikeCooldown,
       ],
     });
+
+    // Zo: KORTE herstelloop — BEWUST laag volume na lange fiets Za
+    // ❌ NOOIT lange duurloop op zondag na lange fietsrit!
+    const recMins = phase === 'base' ? 30 : phase === 'build' ? 35 : 40;
+    const recRunSecs = recMins === 30 ? 1200 : recMins === 35 ? 1500 : 1800;
     sessions.push({
-      day:'Zo', type:'run', name:'Lange duurloop',
-      meta: phase==='base' ? '60 min Z2' : phase==='build' ? '75 min Z2' : '90 min Z2',
-      desc:'Aerobe basis opbouwen',
+      day:'Zo', type:'run', name:'Herstelloop Z1',
+      meta:`${recMins} min Z1 @ ${z.runEasy}/km`,
+      desc:`Actief herstel na de lange zaterdag-fietsrit — bewust kort en rustig, hartslag in Z1 houden`,
       garminSteps: [
-        runWarmup,
-        { kind:'interval', secs: phase==='base' ? 2400 : phase==='build' ? 3300 : 4200, desc:'Lange duur Z2' },
-        runCooldown,
+        { kind:'warmup',   secs:300, desc:'5 min inlopen' },
+        { kind:'interval', secs:recRunSecs - 600, desc:`${recMins - 10} min Z1 @ ${z.runEasy}/km` },
+        { kind:'cooldown', secs:300, desc:'5 min uitlopen' },
       ],
     });
 
   } else if (isRun) {
-    sessions.push({ day:'Ma', type:'rest', name:'Rust', meta:'', desc:'' });
+    // LOOPPLAN REGELS:
+    // Ma: Rust
+    // Di: Interval (hard)
+    // Wo: Cross-training fiets (herstel na interval, GEEN lopen!)
+    // Do: Tempo of duurloop (48 uur na interval = OK)
+    // Vr: Kracht
+    // Za: Lange duurloop (langste sessie)
+    // Zo: Korte herstelloop Z1 (NOOIT lang na lange zaterdag!)
+
+    sessions.push({ day:'Ma', type:'rest', name:'Rust', meta:'', desc:'Herstel van vorige week' });
+
+    // Di: Interval — harde loopsessie
+    const intervalSets = phase === 'base' ? 6 : phase === 'build' ? 8 : 6;
+    const intervalDist = phase === 'peak' ? 1000 : 400;
+    const intervalPace = z.runFast;
     sessions.push({
-      day:'Di', type:'run', name:'Interval', meta:`8×400m @ ${z.runFast}/km`, desc:'VO₂max boost',
+      day:'Di', type:'run',
+      name: phase === 'peak' ? 'VO₂max interval' : 'Intervalloop',
+      meta: phase === 'peak' ? `6×1 km @ ${intervalPace}/km` : `${intervalSets}×${intervalDist}m @ ${intervalPace}/km`,
+      desc:'Zwaarste lopsessie van de week — VO₂max boost',
       garminSteps: [
         runWarmup,
-        { kind:'repeat', sets:8, steps:[
-          { kind:'interval', dist:400, desc:`400m @ ${z.runFast}/km` },
-          { kind:'recovery', secs:120, desc:'2 min herstel' },
+        { kind:'repeat', sets:intervalSets, steps:[
+          { kind:'interval', dist:intervalDist, desc:`${intervalDist}m @ ${intervalPace}/km` },
+          { kind:'recovery', secs: phase === 'peak' ? 180 : 120, desc:`${phase === 'peak' ? 3 : 2} min herstel` },
         ]},
         runCooldown,
       ],
     });
+
+    // Wo: Cross-training fiets — GEEN lopen na zware interval
     sessions.push({
-      day:'Wo', type:'bike', name:'Herstelrit', meta:'45 min Z1-Z2', desc:'Actief herstel',
-      garminSteps: [ runWarmup, { kind:'interval', secs:1500, desc:'25 min Z1-Z2' }, runCooldown ],
+      day:'Wo', type:'bike', name:'Cross-training',
+      meta:'45 min Z1', desc:'Benen actief houden zonder loopimpact — herstel van interval',
+      garminSteps: [ bikeWarmup, { kind:'interval', secs:1500, desc:'25 min Z1' }, bikeCooldown ],
     });
-    sessions.push({
-      day:'Do', type:'run', name:'Tempoloop', meta:`5 km @ ${z.runTempo}/km`, desc:'',
-      garminSteps: [
-        runWarmup,
-        { kind:'interval', dist:5000, desc:`5 km @ ${z.runTempo}/km` },
-        runCooldown,
-      ],
-    });
-    sessions.push({ day:'Vr', type:'str', name:'Kracht', meta:'30 min', desc:'Functionele loopkracht' });
+
+    // Do: Tempo of duurloop — 48 uur na interval = genoeg herstel
+    if (phase === 'base') {
+      sessions.push({
+        day:'Do', type:'run', name:'Duurloop Z2',
+        meta:`45 min Z2 @ ${z.runEasy}/km`,
+        desc:'Aerobe basis — rustig, NIET tempo na dinsdag interval',
+        garminSteps: [
+          runWarmup,
+          { kind:'interval', secs:1500, desc:`25 min Z2 @ ${z.runEasy}/km` },
+          runCooldown,
+        ],
+      });
+    } else if (phase === 'build') {
+      sessions.push({
+        day:'Do', type:'run', name:'Tempoloop',
+        meta:`5 km @ ${z.runTempo}/km`,
+        desc:'Drempelsnelheid — 48 uur na interval geeft voldoende herstel',
+        garminSteps: [
+          runWarmup,
+          { kind:'interval', dist:5000, desc:`5 km @ ${z.runTempo}/km` },
+          runCooldown,
+        ],
+      });
+    } else { // peak
+      sessions.push({
+        day:'Do', type:'run', name:'Racetemploop',
+        meta:`8 km progressief naar ${z.runTempo}/km`,
+        desc:'Racespecifieke intensiteit — opbouwen in tempo',
+        garminSteps: [
+          runWarmup,
+          { kind:'interval', dist:4000, desc:`4 km @ ${z.runEasy}/km` },
+          { kind:'interval', dist:4000, desc:`4 km opbouwen naar ${z.runTempo}/km` },
+          runCooldown,
+        ],
+      });
+    }
+
+    sessions.push({ day:'Vr', type:'str', name:'Kracht', meta:'30 min', desc:'Functionele loopkracht — glutes, hamstrings, core' });
+
+    // Za: Lange duurloop — max volume sessie
+    const longDist = type === 'marathon'
+      ? (phase === 'base' ? 22000 : phase === 'build' ? 28000 : 32000)
+      : type === 'HM'
+      ? (phase === 'base' ? 14000 : phase === 'build' ? 18000 : 20000)
+      : (phase === 'base' ? 10000 : phase === 'build' ? 12000 : 14000);
+    const longDistKm = Math.round(longDist / 1000);
     sessions.push({
       day:'Za', type:'run', name:'Lange duurloop',
-      meta: type==='marathon' ? '28-32 km Z2' : type==='HM' ? '18-22 km Z2' : '12 km Z2', desc:'Basiswerk',
+      meta:`${longDistKm} km Z2 @ ${z.runEasy}/km`,
+      desc:'Langste sessie van de week — vetverbranding en mentale kracht',
       garminSteps: [
         runWarmup,
-        { kind:'interval', dist: type==='marathon' ? 28000 : type==='HM' ? 18000 : 12000, desc:'Lange duur Z2' },
+        { kind:'interval', dist:longDist, desc:`${longDistKm} km Z2 @ ${z.runEasy}/km` },
         runCooldown,
       ],
     });
+
+    // Zo: KORTE herstelloop — BEWUST licht na lange zaterdag
+    // ❌ NOOIT een tweede lange duurloop op zondag!
     sessions.push({
-      day:'Zo', type:'run', name:'Herstelloop', meta:`40 min @ ${z.runEasy}/km`, desc:'',
-      garminSteps: [ runWarmup, { kind:'interval', secs:1200, desc:`20 min @ ${z.runEasy}/km` }, runCooldown ],
+      day:'Zo', type:'run', name:'Herstelloop Z1',
+      meta:`30 min Z1 @ ${z.runEasy}/km`,
+      desc:`Actief herstel na de lange zaterdag — bewust KORT en rustig, hartslag in Z1`,
+      garminSteps: [
+        { kind:'warmup',   secs:300, desc:'5 min inlopen' },
+        { kind:'interval', secs:1200, desc:`20 min Z1 @ ${z.runEasy}/km` },
+        { kind:'cooldown', secs:300, desc:'5 min uitlopen' },
+      ],
     });
 
   } else if (isBike) {
+    // FIETSPLAN: 2 fietsdagen op rij OK (geen impact), maar hard/easy principe geldt
     sessions.push({ day:'Ma', type:'rest', name:'Rust', meta:'', desc:'' });
     sessions.push({
-      day:'Di', type:'bike', name:'Interval', meta:`5×5 min @ ${z.z5}W`, desc:'VO₂max',
+      day:'Di', type:'bike',
+      name: phase === 'base' ? 'VO₂max interval' : phase === 'build' ? 'VO₂max interval' : 'Race-interval',
+      meta: phase === 'peak' ? `6×5 min @ ${z.z5}W` : `5×5 min @ ${z.z5}W`,
+      desc:'Hoge intensiteit — zwaarste sessie van de week',
       garminSteps: [
-        runWarmup,
-        { kind:'repeat', sets:5, steps:[
+        bikeWarmup,
+        { kind:'repeat', sets: phase === 'peak' ? 6 : 5, steps:[
           { kind:'interval', secs:300, desc:`5 min @ ${z.z5}W` },
-          { kind:'recovery', secs:300, desc:'5 min herstel' },
+          { kind:'recovery', secs:300, desc:'5 min Z1 herstel' },
         ]},
-        runCooldown,
+        bikeCooldown,
       ],
     });
     sessions.push({
-      day:'Wo', type:'run', name:'Herstelloop', meta:'35 min Z1', desc:'',
-      garminSteps: [ runWarmup, { kind:'interval', secs:900, desc:'15 min Z1' }, runCooldown ],
+      day:'Wo', type:'run', name:'Herstelloop',
+      meta:`35 min Z1 @ ${z.runEasy}/km`, desc:'Cross-training — geen fietsimpact, herstel na zware interval',
+      garminSteps: [ runWarmup, { kind:'interval', secs:900, desc:`15 min Z1 @ ${z.runEasy}/km` }, runCooldown ],
     });
     sessions.push({
-      day:'Do', type:'bike', name:'Sweetspot', meta:`2×20 min @ ${z.z4}W`, desc:'',
+      day:'Do', type:'bike', name:'Sweetspot',
+      meta: phase === 'base' ? `2×20 min @ ${z.z4}W` : `3×15 min @ ${z.z4}W`,
+      desc:'Drempelkracht — 48 uur na di interval = OK',
       garminSteps: [
-        runWarmup,
-        { kind:'repeat', sets:2, steps:[
-          { kind:'interval', secs:1200, desc:`20 min @ ${z.z4}W` },
-          { kind:'recovery', secs:300,  desc:'5 min herstel' },
+        bikeWarmup,
+        { kind:'repeat', sets: phase === 'base' ? 2 : 3, steps:[
+          { kind:'interval', secs: phase === 'base' ? 1200 : 900, desc:`${phase === 'base' ? 20 : 15} min @ ${z.z4}W` },
+          { kind:'recovery', secs:300, desc:'5 min Z1' },
         ]},
-        runCooldown,
+        bikeCooldown,
       ],
     });
-    sessions.push({ day:'Vr', type:'str', name:'Kracht / core', meta:'25 min', desc:'' });
+    sessions.push({ day:'Vr', type:'str', name:'Kracht / core', meta:'25 min', desc:'Fietsspecifieke kracht — core, glutes, rug' });
     sessions.push({
-      day:'Za', type:'bike', name:'Lange rit', meta:'3-4 uur Z2', desc:'Vetverbranding',
-      garminSteps: [ runWarmup, { kind:'interval', secs:10800, desc:'3 uur Z2' }, runCooldown ],
+      day:'Za', type:'bike', name:'Lange rit',
+      meta: phase === 'peak' ? '4 uur Z2' : '3 uur Z2',
+      desc:'Hoog volume basiswerk — vetverbranding',
+      garminSteps: [
+        bikeWarmup,
+        { kind:'interval', secs: phase === 'peak' ? 13200 : 9600, desc:`${phase === 'peak' ? '3.5 uur' : '2.5 uur'} Z2` },
+        bikeCooldown,
+      ],
     });
+    // Zo: Fiets 2 dagen OK (geen impact) maar lager volume
     sessions.push({
-      day:'Zo', type:'bike', name:'Z2 duurrit', meta:'2 uur Z2', desc:'',
-      garminSteps: [ runWarmup, { kind:'interval', secs:7200, desc:'2 uur Z2' }, runCooldown ],
+      day:'Zo', type:'bike', name:'Herstelrit Z1-Z2',
+      meta:'90 min Z1-Z2', desc:'Actief herstel — lager volume dan zaterdag',
+      garminSteps: [
+        bikeWarmup,
+        { kind:'interval', secs:4200, desc:'70 min Z1-Z2' },
+        bikeCooldown,
+      ],
     });
 
   } else if (isSwim) {
     sessions.push({ day:'Ma', type:'rest', name:'Rust', meta:'', desc:'' });
     sessions.push({
-      day:'Di', type:'swim', name:'Interval', meta:`10×100m @ ${z.swimTempo}/100m`, desc:'Drempeltraining',
+      day:'Di', type:'swim', name:'Interval',
+      meta:`10×100m @ ${z.swimTempo}/100m`, desc:'Drempeltraining — zwaarste zwemdag',
       garminSteps: [
         swimWarmup,
         { kind:'repeat', sets:10, steps:[
@@ -1770,23 +2012,27 @@ function makeSessions(z, phase, type, weekNum) {
       ],
     });
     sessions.push({
-      day:'Wo', type:'bike', name:'Herstelrit', meta:'40 min Z1', desc:'',
-      garminSteps: [ runWarmup, { kind:'interval', secs:1200, desc:'20 min Z1' }, runCooldown ],
+      day:'Wo', type:'bike', name:'Herstelrit', meta:'40 min Z1',
+      desc:'Cross-training — geen zwemimpact op schouders',
+      garminSteps: [ bikeWarmup, { kind:'interval', secs:1200, desc:'20 min Z1' }, bikeCooldown ],
     });
     sessions.push({
-      day:'Do', type:'swim', name:'Lange duurzwem', meta:'3000m endurance', desc:'Aëroob volume',
+      day:'Do', type:'swim', name:'Duurzwem',
+      meta: phase === 'base' ? '2500m endurance' : '3000m endurance',
+      desc:'Aëroob volume — 48 uur na interval = genoeg herstel',
       garminSteps: [
         swimWarmup,
-        { kind:'interval', dist:2400, desc:'2400m endurance' },
+        { kind:'interval', dist: phase === 'base' ? 1900 : 2400, desc:`${phase === 'base' ? '1900m' : '2400m'} endurance` },
         swimCooldown,
       ],
     });
-    sessions.push({ day:'Vr', type:'str', name:'Core + schouderkracht', meta:'30 min', desc:'' });
+    sessions.push({ day:'Vr', type:'str', name:'Core + schouderkracht', meta:'30 min', desc:'Schouder stabiliteit, core rotatie' });
     sessions.push({
-      day:'Za', type:'swim', name:'Snelheidstraining', meta:`6×50m sprint + 4×200m @ ${z.swimEasy}/100m`, desc:'',
+      day:'Za', type:'swim', name:'Snelheidstraining',
+      meta:`8×50m sprint + 4×200m @ ${z.swimEasy}/100m`, desc:'Snelheid + volume',
       garminSteps: [
         swimWarmup,
-        { kind:'repeat', sets:6, steps:[
+        { kind:'repeat', sets:8, steps:[
           { kind:'interval', dist:50,  desc:'50m sprint' },
           { kind:'recovery', secs:30,  desc:'30s rust' },
         ]},
@@ -1799,12 +2045,104 @@ function makeSessions(z, phase, type, weekNum) {
       ],
     });
     sessions.push({
-      day:'Zo', type:'run', name:'Herstelloop', meta:'30 min Z1', desc:'',
-      garminSteps: [ runWarmup, { kind:'interval', secs:600, desc:'10 min Z1' }, runCooldown ],
+      day:'Zo', type:'run', name:'Herstelloop', meta:`30 min Z1 @ ${z.runEasy}/km`,
+      desc:'Cross-training — actief herstel, geen zwemimpact',
+      garminSteps: [
+        { kind:'warmup', secs:300, desc:'5 min inlopen' },
+        { kind:'interval', secs:1200, desc:`20 min Z1 @ ${z.runEasy}/km` },
+        { kind:'cooldown', secs:300, desc:'5 min uitlopen' },
+      ],
     });
   }
 
   return sessions;
+}
+
+// ── PERIODISATIE BEWAKER ───────────────────────────────────────────────────────
+// Wordt ALTIJD aangeroepen na makeSessions(), ongeacht hoe sessies zijn opgebouwd.
+// Voorkomt structurele fouten die anders bij elke gebruiker kunnen optreden.
+//
+// REGELS:
+//  1. Zondag na een lange fietsrit op zaterdag → maximaal 30 min herstelloop Z1
+//  2. Geen twee zware loopsessies (interval/tempo) op opeenvolgende dagen
+//  3. Geen twee lange duurlopen (>45 min) op opeenvolgende dagen
+//  4. Kracht nooit direct na een zware interval of vóór een lange sessie
+//
+function enforcePeriodization(sessions) {
+  const DAY_ORDER = ['Ma','Di','Wo','Do','Vr','Za','Zo'];
+  const sorted = [...sessions].sort((a, b) => DAY_ORDER.indexOf(a.day) - DAY_ORDER.indexOf(b.day));
+
+  // Hulpfuncties
+  const isHardRun  = s => s.type === 'run'  && /interval|tempo|snelheid|strides/i.test(s.name + s.meta);
+  const isLongRun  = s => s.type === 'run'  && /lange|long/i.test(s.name);
+  const isLongBike = s => s.type === 'bike' && /lange|long/i.test(s.name);
+  const dayIdx     = s => DAY_ORDER.indexOf(s.day);
+  const isConsecutive = (a, b) => Math.abs(dayIdx(a) - dayIdx(b)) === 1;
+
+  const fixed = sorted.map((s, i) => {
+    let out = { ...s };
+
+    // REGEL 1: Zondag is lange rit op zaterdag geweest → max herstelloop Z1
+    if (s.day === 'Zo' && s.type === 'run') {
+      const za = sorted.find(x => x.day === 'Za' && isLongBike(x));
+      if (za) {
+        const isAlreadyShort = /herstel|Z1|30 min|25 min/i.test(s.name + s.meta + s.desc);
+        if (!isAlreadyShort) {
+          out = {
+            ...s,
+            name: 'Herstelloop Z1',
+            meta: '30 min Z1',
+            desc: '[Auto] Kort gehouden na lange zaterdag-fietsrit — actief herstel',
+            garminSteps: [
+              { kind:'warmup',   secs:300,  desc:'5 min inlopen' },
+              { kind:'interval', secs:1200, desc:'20 min Z1' },
+              { kind:'cooldown', secs:300,  desc:'5 min uitlopen' },
+            ],
+          };
+        }
+      }
+    }
+
+    // REGEL 2: Geen twee zware loopsessies op opeenvolgende dagen
+    if (isHardRun(out)) {
+      const prevHard = sorted.slice(0, i).reverse().find(isHardRun);
+      if (prevHard && isConsecutive(prevHard, out)) {
+        out = {
+          ...out,
+          name: 'Duurloop Z2',
+          meta: '40 min Z2',
+          desc: '[Auto] Interval vervangen door duurloop — vorige dag was al een zware loopsessie',
+          garminSteps: [
+            { kind:'warmup',   secs:600,  desc:'10 min opwarmen' },
+            { kind:'interval', secs:1200, desc:'20 min Z2' },
+            { kind:'cooldown', secs:600,  desc:'10 min afkoelen' },
+          ],
+        };
+      }
+    }
+
+    // REGEL 3: Geen twee lange duurlopen op opeenvolgende dagen
+    if (isLongRun(out)) {
+      const prevLong = sorted.slice(0, i).reverse().find(isLongRun);
+      if (prevLong && isConsecutive(prevLong, out)) {
+        out = {
+          ...out,
+          name: 'Herstelloop Z1',
+          meta: '30 min Z1',
+          desc: '[Auto] Lange duurloop vervangen door herstelloop — vorige dag was al een lange loopsessie',
+          garminSteps: [
+            { kind:'warmup',   secs:300,  desc:'5 min inlopen' },
+            { kind:'interval', secs:1200, desc:'20 min Z1' },
+            { kind:'cooldown', secs:300,  desc:'5 min uitlopen' },
+          ],
+        };
+      }
+    }
+
+    return out;
+  });
+
+  return fixed;
 }
 
 function applyInjuries(sessions, injuries) {
@@ -1886,6 +2224,7 @@ function generatePlan() {
     }
 
     let sessions = makeSessions(z, phase, evt.type, w + 1);
+    sessions = enforcePeriodization(sessions);  // ← structurele bewaker: altijd aanroepen
     sessions = applyInjuries(sessions, INJURIES);
     if (Object.keys(AVAILABILITY).length) {
       sessions = scheduleWithAvailability(sessions, AVAILABILITY);
