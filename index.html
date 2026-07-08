@@ -1788,8 +1788,8 @@ function makeSessions(z, phase, type, weekNum, evt) {
     // Weekvolume loopwerk in PEAK = race-looponderdeel (HIM 21km, IM 42km)
     // Verdeling: lange duurloop (Do) + brick (Wo) + herstelloop (Zo) = race-run-afstand
     //
-    //  HIM peak: 18km (Do) + 10 min brick (~1.7km) + 10 min herstel (~1.7km) ≈ 21km
-    //  IM  peak: 28km (Do) + 40 min brick (~7km)   + 45 min herstel (~7km)   ≈ 42km
+    //  HIM peak: 18km (Do) + 10 min brick (~1.7km, na fiets) + 25 min herstel (~3.5km) ≈ 23km
+    //  IM  peak: 28km (Do) + 40 min brick (~7km,   na fiets) + 45 min herstel (~7km)   ≈ 42km
 
     // Donderdag loopvolume per eventtype en fase
     const DO_RUN = {
@@ -1990,11 +1990,12 @@ function makeSessions(z, phase, type, weekNum, evt) {
     });
 
     // Zo: Herstelloop — duur zo berekend dat weekdoel loopvolume wordt gehaald
-    // HIM peak: 10 min (≈1.7km) → totaal week ≈ 21km
-    // IM  peak: 45 min (≈7km)   → totaal week ≈ 42km
-    // ❌ NOOIT lang lopen op zondag na lange fietsrit!
+    // Zondag herstelloop: MINIMUM 20 min voor een zinvolle standalone sessie.
+    // Brick-loopje (wo, na fietsrit) telt niet mee — je bent al buiten.
+    // HIM peak: 25 min (≈3.5km) → weektotaal ≈ 23km (18km do + 1.7km brick + 3.5km zo)
+    // IM  peak: 45 min (≈7km)   → weektotaal ≈ 42km
     const recRunMins =
-      type === 'HIM' ? (phase === 'base' ? 30 : phase === 'build' ? 35 : 10)
+      type === 'HIM' ? (phase === 'base' ? 30 : phase === 'build' ? 35 : 25)
     : type === 'IM'  ? (phase === 'base' ? 35 : phase === 'build' ? 40 : 45)
     : isLongDistTri  ? (phase === 'base' ? 30 : phase === 'build' ? 35 : 40)
     :                  (phase === 'base' ? 25 : phase === 'build' ? 30 : 35);
@@ -2002,7 +2003,7 @@ function makeSessions(z, phase, type, weekNum, evt) {
     sessions.push({
       day:'Zo', type:'run', name:'Herstelloop Z1',
       meta:`${recRunMins} min Z1 @ ${z.runEasy}/km`,
-      desc:`Actief herstel na lange zaterdag-fietsrit — hartslag Z1, bewust kort${type === 'HIM' && phase === 'peak' ? ' (weekvolume is al gehaald via duurloop donderdag)' : ''}`,
+      desc:`Actief herstel na lange zaterdag-fietsrit — hartslag Z1, nooit lang lopen na zware fietsdag`,
       garminSteps: [
         { kind:'warmup',   secs:Math.min(300, recRunMins * 30), desc:'inlopen' },
         { kind:'interval', secs:Math.max(300, recRunMins * 60 - 600), desc:`${Math.max(5, recRunMins - 10)} min Z1 @ ${z.runEasy}/km` },
