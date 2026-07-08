@@ -2734,7 +2734,10 @@ function fmtPaceFromMps(mps) {
 function renderActivities() {
   const list = document.getElementById('activities-list');
   if (!ACTIVITIES.length) {
-    list.innerHTML = '<div class="empty">Klik op "Sync Strava" om activiteiten te laden.</div>';
+    const hasStrava = PROFILE?.strava_refresh_token || PROFILE?.strava_access_token;
+    list.innerHTML = hasStrava
+      ? '<div class="empty"><span class="spinner"></span> Strava activiteiten laden…</div>'
+      : '<div class="empty">Koppel je Strava account via Profiel om activiteiten te laden.</div>';
     return;
   }
   const typeClass = { Run:'run', Ride:'bike', Swim:'swim' };
@@ -4109,22 +4112,52 @@ async function saveResult() {
 
 // ── AUTO GARMIN SYNC ──────────────────────────────────────────
 async function autoSyncIfNeeded() {
-  if (!PROFILE?.garmin_email || !ACCESS_TOKEN) return;
-  const today = new Date().toISOString().slice(0, 10);
-  const hasToday = HEALTH.some(h => h.date === today);
-  if (hasToday) return;
-  try {
-    const res = await fetch('/api/garmin-sync-user', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` },
-    });
-    const data = await res.json();
-    if (data.ok) {
-      const r = await sb.from('health_logs').select('*').eq('user_id', USER.id).order('date', { ascending: false }).limit(30);
-      HEALTH = r.data || [];
-      renderHealthTab();
+  // ── Garmin health data ─────────────────────────────────────────────────────
+  if (PROFILE?.garmin_email && ACCESS_TOKEN) {
+    const today = new Date().toISOString().slice(0, 10);
+    const hasToday = HEALTH.some(h => h.date === today);
+    if (!hasToday) {
+      try {
+        const res = await fetch('/api/garmin-sync-user', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` },
+        });
+        const data = await res.json();
+        if (data.ok) {
+          const r = await sb.from('health_logs').select('*').eq('user_id', USER.id).order('date', { ascending: false }).limit(30);
+          HEALTH = r.data || [];
+          renderHealthTab();
+        }
+      } catch (e) { console.warn('Auto Garmin sync mislukt:', e); }
     }
-  } catch (e) { console.warn('Auto-sync mislukt:', e); }
+  }
+
+  // ── Strava activiteiten ────────────────────────────────────────────────────
+  // Sync automatisch bij app-start als:
+  //   - gebruiker heeft Strava gekoppeld
+  //   - activiteiten zijn leeg OF laatste sync > 6 uur geleden
+  const hasStrava = (PROFILE?.strava_refresh_token || PROFILE?.strava_access_token) && ACCESS_TOKEN;
+  if (hasStrava) {
+    const lastSync  = parseInt(localStorage.getItem('strava_last_sync') || '0');
+    const sixHours  = 6 * 3600 * 1000;
+    const needsSync = !ACTIVITIES.length || (Date.now() - lastSync > sixHours);
+    if (needsSync) {
+      try {
+        const res  = await fetch('/api/strava-sync', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${ACCESS_TOKEN}` },
+        });
+        const data = await res.json();
+        if (data.ok && data.activities?.length) {
+          ACTIVITIES = data.activities;
+          localStorage.setItem('strava_last_sync', String(Date.now()));
+          renderActivities();
+          // Herbereken plan — zones kunnen nu afwijken van eerder
+          generateAndRender();
+        }
+      } catch (e) { console.warn('Auto Strava sync mislukt:', e); }
+    }
+  }
 }
 
 // ── EVENT TYPE PRESETS ────────────────────────────────────────
