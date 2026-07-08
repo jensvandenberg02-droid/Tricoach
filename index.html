@@ -860,13 +860,131 @@ a { color: var(--accent); text-decoration: none; }
 .btn-icon-only svg { width: 16px; height: 16px; }
 
 /* ── RESPONSIVE ──────────────────────────────────────────── */
-@media (max-width: 640px) {
-  #topbar nav button { padding: 6px 8px; font-size: 12px; }
-  #countdown { flex-wrap: wrap; gap: 8px; }
-  .form-row, .form-row-3 { grid-template-columns: 1fr; }
+/* ── MOBILE (≤ 768px) ────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* ── Topbar: logo verkleinen, nav horizontaal scrollbaar ── */
+  #topbar {
+    padding: 0 12px;
+    height: auto;
+    flex-wrap: wrap;
+    gap: 0;
+  }
+  #topbar .logo { font-size: 20px; padding: 10px 0; }
+  #topbar nav {
+    order: 3; width: 100%;
+    overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    border-top: 1px solid var(--border);
+    padding: 4px 0;
+    gap: 0;
+  }
+  #topbar nav::-webkit-scrollbar { display: none; }
+  #topbar nav button {
+    white-space: nowrap;
+    padding: 7px 12px;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .topbar-right { padding: 10px 0; }
+
+  /* ── Hero ─────────────────────────────────────────────────── */
+  #hero { padding: 24px 16px 20px; }
+  #hero-top { flex-direction: column; gap: 12px; }
+  #hero-event h1 { font-size: 28px; }
+  #countdown { gap: 8px; }
+  .cd-box { min-width: 64px; padding: 10px 12px; }
+  .cd-box .num { font-size: 28px; }
+  #hero-stats {
+    gap: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  #hero-stats::-webkit-scrollbar { display: none; }
+  .hero-stat {
+    min-width: 80px;
+    padding: 10px 14px;
+    flex-shrink: 0;
+  }
+  .hero-stat .val { font-size: 22px; }
+
+  /* ── Main content padding ─────────────────────────────────── */
+  #main { padding: 12px; }
+  .section-header { margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+
+  /* ── Plan: session cards stapelen ────────────────────────── */
+  .sessions-grid {
+    grid-template-columns: 1fr !important;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .session-item { padding: 12px; }
+  .week-header { padding: 12px 14px; }
+
+  /* ── Weeklijst ──────────────────────────────────────────── */
+  .week-task-card { padding: 12px; }
+  .week-task-header { flex-wrap: wrap; gap: 6px; }
+
+  /* ── Activities ──────────────────────────────────────────── */
+  .activity-row { padding: 10px 12px; gap: 8px; }
+  .act-stats { gap: 10px; }
+  .act-stat .v { font-size: 14px; }
+
+  /* ── Activity detail side panel → volledig scherm ─────────── */
+  #activity-detail {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-left: none !important;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Events ──────────────────────────────────────────────── */
+  .event-card { padding: 12px; }
+  .event-actions { flex-wrap: wrap; gap: 6px; }
+
+  /* ── Blessures ───────────────────────────────────────────── */
+  .injury-card { padding: 12px; }
+
+  /* ── Gezondheid ──────────────────────────────────────────── */
   #health-grid { grid-template-columns: repeat(2, 1fr); }
   .charts-grid { grid-template-columns: 1fr; }
   .chart-card.wide { grid-column: span 1; }
+  .tl-stats { flex-direction: column; gap: 8px; }
+
+  /* ── Profiel ─────────────────────────────────────────────── */
+  .form-row, .form-row-3 { grid-template-columns: 1fr; }
+  .pr-grid { grid-template-columns: 1fr !important; }
+
+  /* ── Modals: volledig scherm op mobiel ──────────────────── */
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal {
+    border-radius: var(--r) var(--r) 0 0;
+    max-width: 100%;
+    max-height: 92vh;
+    padding: 20px 16px;
+  }
+
+  /* ── AI Coach ────────────────────────────────────────────── */
+  .coach-intro { padding: 16px; }
+  .coach-suggestions { gap: 6px; }
+  .coach-suggest-btn { font-size: 11px; padding: 5px 10px; }
+  .coach-bubble { max-width: 90%; font-size: 13px; }
+  .coach-input-row { margin: 0 -12px; border-radius: 0; border-left: none; border-right: none; border-bottom: none; }
+
+  /* ── Algemeen ────────────────────────────────────────────── */
+  .card { padding: 14px; }
+  .btn { padding: 9px 14px; font-size: 13px; }
+  .view-toggle { flex-wrap: wrap; }
+}
+
+/* ── Kleine telefoons (≤ 400px) ──────────────────────────── */
+@media (max-width: 400px) {
+  #hero-event h1 { font-size: 22px; }
+  .cd-box .num { font-size: 24px; }
+  #health-grid { grid-template-columns: 1fr; }
+  .hero-stat .val { font-size: 18px; }
 }
 </style>
 </head>
