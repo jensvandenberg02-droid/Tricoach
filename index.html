@@ -2976,7 +2976,7 @@ function renderPlan(plan) {
             </button>
           </div>
           <label class="session-done-cb">
-            <input type="checkbox" ${done ? 'checked' : ''} onchange="toggleDone('${key}',this.checked)">
+            <input type="checkbox" data-key="${key}" ${done ? 'checked' : ''} onchange="toggleDone('${key}',this.checked)">
             Gedaan
           </label>
         </div>`;
@@ -3034,6 +3034,13 @@ async function toggleDone(key, checked) {
   } else {
     await sb.from('session_done').delete().eq('user_id', USER.id).eq('session_key', key);
     DONE_SET.delete(key);
+  }
+  // Sync weeklijst DOM
+  const wlItem = document.querySelector(`.week-task-item[data-key="${key}"]`);
+  if (wlItem) {
+    wlItem.classList.toggle('done', checked);
+    const chk = wlItem.querySelector('.task-check');
+    if (chk) chk.textContent = checked ? '✓' : '';
   }
 }
 
@@ -4349,10 +4356,10 @@ function renderPlanAsChecklist(plan) {
     const activeSessions = week.sessions.filter(s => s.type !== 'rest');
 
     const sessHtml = activeSessions.map(s => {
-      const key  = `wl_${week.weekNum}_${s.type}_${s.name.replace(/\s+/g,'_')}`;
+      const key  = `w${week.weekNum}_${s.day}_${s.name.replace(/\s+/g,'_')}`;
       const done = DONE_SET.has(key);
       return `
-        <div class="week-task-item ${done ? 'done' : ''}" onclick="toggleWeekTask('${key}',this)">
+        <div class="week-task-item ${done ? 'done' : ''}" data-key="${key}" onclick="toggleWeekTask('${key}',this)">
           <div class="task-check">${done ? '✓' : ''}</div>
           <div class="task-icon">${typeIcon[s.type] || '🏋️'}</div>
           <div class="task-body">
@@ -4380,13 +4387,17 @@ function renderPlanAsChecklist(plan) {
 
 async function toggleWeekTask(key, el) {
   const done = DONE_SET.has(key);
-  if (done) { DONE_SET.delete(key); el.classList.remove('done'); el.querySelector('.task-check').textContent = ''; }
-  else      { DONE_SET.add(key);    el.classList.add('done');    el.querySelector('.task-check').textContent = '✓'; }
-  if (!done) {
+  const nowDone = !done;
+  if (nowDone) { DONE_SET.add(key);    el.classList.add('done');    el.querySelector('.task-check').textContent = '✓'; }
+  else         { DONE_SET.delete(key); el.classList.remove('done'); el.querySelector('.task-check').textContent = ''; }
+  if (nowDone) {
     await sb.from('session_done').upsert({ user_id: USER.id, session_key: key });
   } else {
     await sb.from('session_done').delete().eq('user_id', USER.id).eq('session_key', key);
   }
+  // Sync per-dag DOM
+  const cb = document.querySelector(`input[data-key="${key}"]`);
+  if (cb) cb.checked = nowDone;
 }
 
 // ── CALIBRATED PACES FROM RACE RESULTS ───────────────────────
