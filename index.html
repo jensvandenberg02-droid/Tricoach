@@ -1030,6 +1030,28 @@ a { color: var(--accent); text-decoration: none; }
             <canvas id="chart-fitness"></canvas>
           </div>
         </div>
+        <div class="chart-card wide">
+          <div class="chart-title">Trainingsbelasting — CTL / ATL / TSB</div>
+          <div class="chart-subtitle">Fitness · Vermoeidheid · Form (42d / 7d / verschil)</div>
+          <div style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap">
+            <div style="text-align:center">
+              <div style="font-family:var(--font-c);font-size:26px;font-weight:900;color:#22c55e" id="tl-ctl">—</div>
+              <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:1px">Fitness (CTL)</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-family:var(--font-c);font-size:26px;font-weight:900;color:#f87171" id="tl-atl">—</div>
+              <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:1px">Vermoeidheid (ATL)</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-family:var(--font-c);font-size:26px;font-weight:900;color:#60a5fa" id="tl-tsb">—</div>
+              <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:1px">Form (TSB)</div>
+            </div>
+            <div style="font-size:12px;color:var(--t3);align-self:center;max-width:180px" id="tl-advice"></div>
+          </div>
+          <div class="chart-wrap" style="height:150px">
+            <canvas id="chart-tl"></canvas>
+          </div>
+        </div>
       </div>
 
       <div id="health-log-list"></div>
@@ -1106,6 +1128,39 @@ a { color: var(--accent); text-decoration: none; }
         <div class="form-group"><label>Garmin e-mail</label><input class="form-control" id="p-garmin-email" type="email" placeholder="jou@email.com"></div>
         <div class="form-group"><label>Garmin wachtwoord</label><input class="form-control" id="p-garmin-pw" type="password" placeholder="••••••••"></div>
         <button class="btn btn-garmin" onclick="saveGarmin()">Garmin koppelen</button>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Persoonlijke records</div>
+        <p style="font-size:13px;color:var(--t2);margin-bottom:14px">Beste tijden per afstand. Worden gebruikt als referentie in het trainingsplan.</p>
+        <div style="font-size:12px;font-weight:700;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">🏊 Zwemmen</div>
+        <div class="form-row">
+          <div class="form-group"><label>400m</label><input class="form-control pr-field" id="pr-swim-400" placeholder="6:30" data-pr="swim_400"></div>
+          <div class="form-group"><label>1500m</label><input class="form-control pr-field" id="pr-swim-1500" placeholder="24:00" data-pr="swim_1500"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>1900m (HIM)</label><input class="form-control pr-field" id="pr-swim-1900" placeholder="32:00" data-pr="swim_1900"></div>
+          <div class="form-group"><label>3800m (IM)</label><input class="form-control pr-field" id="pr-swim-3800" placeholder="1:08:00" data-pr="swim_3800"></div>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:var(--blue);letter-spacing:1px;text-transform:uppercase;margin:12px 0 8px">🚴 Fietsen</div>
+        <div class="form-row">
+          <div class="form-group"><label>20km TT (gem. km/u)</label><input class="form-control pr-field" id="pr-bike-20" placeholder="38.5" data-pr="bike_20"></div>
+          <div class="form-group"><label>40km (gem. km/u)</label><input class="form-control pr-field" id="pr-bike-40" placeholder="36.0" data-pr="bike_40"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>90km tijd</label><input class="form-control pr-field" id="pr-bike-90" placeholder="2:30:00" data-pr="bike_90"></div>
+          <div class="form-group"><label>180km tijd</label><input class="form-control pr-field" id="pr-bike-180" placeholder="5:20:00" data-pr="bike_180"></div>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:var(--orange);letter-spacing:1px;text-transform:uppercase;margin:12px 0 8px">🏃 Lopen</div>
+        <div class="form-row">
+          <div class="form-group"><label>5 km</label><input class="form-control pr-field" id="pr-run-5k" placeholder="22:00" data-pr="run_5k"></div>
+          <div class="form-group"><label>10 km</label><input class="form-control pr-field" id="pr-run-10k" placeholder="46:00" data-pr="run_10k"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Halve marathon</label><input class="form-control pr-field" id="pr-run-hm" placeholder="1:42:00" data-pr="run_hm"></div>
+          <div class="form-group"><label>Marathon</label><input class="form-control pr-field" id="pr-run-m" placeholder="3:35:00" data-pr="run_m"></div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:4px" onclick="savePRs()">PRs opslaan</button>
       </div>
 
       <div class="card">
@@ -1262,6 +1317,74 @@ a { color: var(--accent); text-decoration: none; }
   </div>
 </div>
 
+<!-- Weekreflectie Modal -->
+<div class="modal-overlay" id="reflection-modal">
+  <div class="modal">
+    <h3>Weekreflectie</h3>
+    <input type="hidden" id="ref-week-start">
+    <p style="font-size:13px;color:var(--t2);margin-bottom:16px">Hoe voelde deze trainingsweek? Eerlijke feedback helpt het plan te verbeteren.</p>
+
+    <div class="form-group">
+      <label>Ervaren belasting (RPE) <span id="rpe-val" style="color:var(--accent);font-weight:700">5</span>/10</label>
+      <input type="range" id="ref-rpe" min="1" max="10" value="5" style="width:100%;accent-color:var(--accent)" oninput="document.getElementById('rpe-val').textContent=this.value">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-top:2px"><span>Heel licht</span><span>Extreem zwaar</span></div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Energieniveau <span id="energy-val" style="color:var(--blue);font-weight:700">3</span>/5</label>
+        <input type="range" id="ref-energy" min="1" max="5" value="3" style="width:100%;accent-color:#60a5fa" oninput="document.getElementById('energy-val').textContent=this.value">
+      </div>
+      <div class="form-group">
+        <label>Motivatie <span id="motiv-val" style="color:var(--orange);font-weight:700">3</span>/5</label>
+        <input type="range" id="ref-motivation" min="1" max="5" value="3" style="width:100%;accent-color:#fb923c" oninput="document.getElementById('motiv-val').textContent=this.value">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Slaap & herstel</label>
+      <select class="form-control" id="ref-recovery">
+        <option value="great">Uitstekend — fris en uitgerust</option>
+        <option value="good" selected>Goed — voldoende herstel</option>
+        <option value="ok">Matig — soms moe wakker</option>
+        <option value="poor">Slecht — vermoeid, slecht geslapen</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Notities <span style="color:var(--t3);font-weight:400">(optioneel)</span></label>
+      <textarea class="form-control" id="ref-notes" rows="3" placeholder="Wat viel op? Pijn, highlights, omstandigheden…"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('reflection-modal')">Annuleer</button>
+      <button class="btn btn-primary" onclick="saveReflection()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Race Checklist Modal -->
+<div class="modal-overlay" id="checklist-modal">
+  <div class="modal" style="max-width:560px">
+    <h3 id="checklist-title">Race-dag checklist</h3>
+    <div id="checklist-body" style="max-height:65vh;overflow-y:auto;padding-right:4px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('checklist-modal')">Sluiten</button>
+    </div>
+  </div>
+</div>
+
+<!-- Nutrition Modal -->
+<div class="modal-overlay" id="nutrition-modal">
+  <div class="modal" style="max-width:520px">
+    <h3 id="nutrition-title">Race-voedingsplan</h3>
+    <div id="nutrition-body"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('nutrition-modal')">Sluiten</button>
+    </div>
+  </div>
+</div>
+
 <!-- Health Modal -->
 <div class="modal-overlay" id="health-modal">
   <div class="modal">
@@ -1339,9 +1462,10 @@ function icon(key, cls='') {
 
 // ── STATE ──────────────────────────────────────────────────────
 let USER     = null;
-let PROFILE  = null;
-let EVENTS   = [];
-let INJURIES = [];
+let PROFILE     = null;
+let EVENTS      = [];
+let INJURIES    = [];
+let REFLECTIONS = [];
 let DONE_SET = new Set();
 let HEALTH   = [];
 let ACTIVITIES = [];
@@ -1404,21 +1528,23 @@ async function signOut() {
 
 // ── LOAD ALL DATA ─────────────────────────────────────────────
 async function loadAll() {
-  const [profileRes, eventsRes, injuriesRes, doneRes, healthRes, activitiesRes] = await Promise.all([
+  const [profileRes, eventsRes, injuriesRes, doneRes, healthRes, activitiesRes, reflectionsRes] = await Promise.all([
     sb.from('profiles').select('*').eq('id', USER.id).single(),
     sb.from('events').select('*').eq('user_id', USER.id).order('date'),
     sb.from('injuries').select('*').eq('user_id', USER.id).order('start_date', { ascending: false }),
     sb.from('session_done').select('session_key').eq('user_id', USER.id),
     sb.from('health_logs').select('*').eq('user_id', USER.id).order('date', { ascending: false }).limit(30),
     sb.from('activities').select('*').eq('user_id', USER.id).order('date', { ascending: false }).limit(50),
+    sb.from('week_reflections').select('*').eq('user_id', USER.id).order('week_start', { ascending: false }).limit(52),
   ]);
 
-  PROFILE    = profileRes.data    || {};
-  EVENTS     = eventsRes.data     || [];
-  INJURIES   = injuriesRes.data   || [];
-  DONE_SET   = new Set((doneRes.data || []).map(r => r.session_key));
-  HEALTH     = healthRes.data     || [];
-  ACTIVITIES = activitiesRes.data || [];
+  PROFILE     = profileRes.data     || {};
+  EVENTS      = eventsRes.data      || [];
+  INJURIES    = injuriesRes.data    || [];
+  DONE_SET    = new Set((doneRes.data || []).map(r => r.session_key));
+  HEALTH      = healthRes.data      || [];
+  ACTIVITIES  = activitiesRes.data  || [];
+  REFLECTIONS = reflectionsRes.data || [];
 
   // Laad beschikbaarheid
   AVAILABILITY = PROFILE.week_availability || {};
@@ -2674,6 +2800,13 @@ function renderPlan(plan) {
       ? `<div class="week-events-row">${week.events.map(e => `${getFlag(e.country)} ${e.name}`).join(' · ')}</div>`
       : '';
 
+    const wStartStr  = week.weekStart.toISOString().slice(0, 10);
+    const isPastWeek = week.weekStart < now;
+    const ref        = (REFLECTIONS || []).find(r => r.week_start === wStartStr);
+    const refBadge   = ref
+      ? `<span style="font-size:11px;background:rgba(34,197,94,.12);color:var(--accent);border-radius:4px;padding:2px 7px;font-weight:700" title="RPE ${ref.rpe}/10">📝 ${ref.rpe}/10</span>`
+      : '';
+
     return `
       <div class="week-card phase-${week.phase} ${isCurrent ? 'current-week' : ''} ${isCurrent ? 'open' : ''}">
         <div class="week-header" onclick="toggleWeek(this.parentElement)">
@@ -2684,7 +2817,9 @@ function renderPlan(plan) {
             ${eventsRow}
           </div>
           <div class="week-header-right">
+            ${refBadge}
             <span class="week-phase phase-${week.phase}" style="display:inline-flex;align-items:center;gap:5px">${ICONS[week.phase] || ''} ${phaseLabels[week.phase]}</span>
+            ${isPastWeek ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openReflectionModal('${wStartStr}',${ref ? JSON.stringify(ref).replace(/'/g,"&apos;") : 'null'})" title="Week reflectie" style="padding:4px 8px;font-size:12px">📝</button>` : ''}
             <span class="week-toggle">▾</span>
           </div>
         </div>
@@ -3234,8 +3369,10 @@ function renderEventsTab() {
         </div>
         <span class="priority-badge priority-${e.priority}">${e.priority}</span>
         ${e.goal_time && e.priority === 'A' ? `<span style="font-size:11px;font-weight:700;color:var(--accent);background:rgba(34,197,94,.12);border-radius:6px;padding:2px 7px;white-space:nowrap">🎯 ${e.goal_time}</span>` : ''}
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
           ${isPast ? `<button class="btn btn-ghost btn-sm" onclick="openResultModal(${eJson})" title="Tijden invoeren">🏁</button>` : ''}
+          ${!isPast ? `<button class="btn btn-ghost btn-sm" onclick="openNutritionModal(${eJson})" title="Voedingsplan">🍌</button>` : ''}
+          ${!isPast ? `<button class="btn btn-ghost btn-sm" onclick="openChecklistModal(${eJson})" title="Race checklist">✅</button>` : ''}
           <button class="btn btn-ghost btn-sm" onclick="openEventModal(${eJson})">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="deleteEvent('${e.id}')">✕</button>
         </div>
@@ -3638,6 +3775,9 @@ function renderHealthCharts() {
       }
     });
   }
+
+  // ── 5. CTL / ATL / TSB ────────────────────────────────────────
+  renderTrainingLoad();
 }
 
 function openHealthModal() {
@@ -3710,6 +3850,8 @@ function renderProfileTab() {
   document.getElementById('p-z2').value = p.hr_zone2 || '';
   document.getElementById('p-z3').value = p.hr_zone3 || '';
   document.getElementById('p-z4').value = p.hr_zone4 || '';
+
+  renderPRs();
 }
 
 function updateAvatar() {
@@ -4406,6 +4548,413 @@ async function syncStravaPace() {
   } catch (e) {
     toast('Strava fout: ' + e.message, 'error');
   }
+}
+
+// ══════════════════════════════════════════════════════════════
+// CTL / ATL / TSB — Trainingsbelasting
+// ══════════════════════════════════════════════════════════════
+// TSS-schatting per activiteit (zonder powermeter / HR-data):
+//   Run: (duur_min / 60) × IF² × 100  — IF geschat o.b.v. pace vs threshold
+//   Bike: IF o.b.v. average_watts vs FTP (of schatting uit snelheid)
+//   Swim: (duur_min / 60) × 0.7 × 100  — zwemmen is lager SST
+function estimateTSS(act, profile) {
+  const durMins = (act.duration || act.moving_time || 0) / 60;
+  if (durMins < 5) return 0;
+
+  const type = act.type;
+
+  if (type === 'Run') {
+    const threshSec = profile?.run_pace ? paceToSec(profile.run_pace) : 300; // sec/km
+    const actPaceSec = act.average_speed > 0 ? 1000 / act.average_speed : threshSec;
+    const IF = Math.min(1.2, threshSec / actPaceSec); // sneller → hogere IF
+    return Math.round((durMins / 60) * IF * IF * 100);
+  }
+  if (type === 'Ride' || type === 'VirtualRide') {
+    const ftp = profile?.ftp || 200;
+    let IF = 0.75; // standaard Z2 schatting
+    if (act.average_watts > 0) IF = Math.min(1.15, act.average_watts / ftp);
+    return Math.round((durMins / 60) * IF * IF * 100);
+  }
+  if (type === 'Swim') {
+    return Math.round((durMins / 60) * 0.65 * 100);
+  }
+  return Math.round((durMins / 60) * 0.5 * 100); // andere sporten
+}
+
+function calcTrainingLoad() {
+  if (!ACTIVITIES.length) return null;
+
+  // Bouw een datum→TSS map
+  const tssMap = {};
+  const p = getEffectivePaces();
+  ACTIVITIES.forEach(act => {
+    const d = (act.start_date || act.date || '').slice(0, 10);
+    if (!d) return;
+    tssMap[d] = (tssMap[d] || 0) + estimateTSS(act, p);
+  });
+
+  // Sorteer data: laatste 90 dagen voor de chart
+  const today   = new Date();
+  const days    = [];
+  for (let i = 89; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+
+  // Rolling CTL (42d) en ATL (7d)
+  let ctl = 0, atl = 0;
+  const ctlArr = [], atlArr = [], tsbArr = [], labels = [];
+
+  // Initialiseer CTL op basis van data vóór ons venster
+  const allDates = Object.keys(tssMap).sort();
+  const windowStart = days[0];
+  allDates.filter(d => d < windowStart).forEach(d => {
+    const tss = tssMap[d] || 0;
+    ctl = ctl + (tss - ctl) / 42;
+    atl = atl + (tss - atl) / 7;
+  });
+
+  days.forEach(d => {
+    const tss = tssMap[d] || 0;
+    ctl = ctl + (tss - ctl) / 42;
+    atl = atl + (tss - atl) / 7;
+    ctlArr.push(Math.round(ctl));
+    atlArr.push(Math.round(atl));
+    tsbArr.push(Math.round(ctl - atl));
+    labels.push(d.slice(5)); // MM-DD
+  });
+
+  return { ctl: Math.round(ctl), atl: Math.round(atl), tsb: Math.round(ctl - atl), ctlArr, atlArr, tsbArr, labels };
+}
+
+function renderTrainingLoad() {
+  const tl = calcTrainingLoad();
+  if (!tl) return;
+
+  document.getElementById('tl-ctl').textContent = tl.ctl;
+  document.getElementById('tl-atl').textContent = tl.atl;
+  const tsbEl = document.getElementById('tl-tsb');
+  tsbEl.textContent = (tl.tsb > 0 ? '+' : '') + tl.tsb;
+  tsbEl.style.color = tl.tsb > 5 ? '#22c55e' : tl.tsb < -20 ? '#f87171' : '#60a5fa';
+
+  const advEl = document.getElementById('tl-advice');
+  if (tl.tsb > 15)       advEl.textContent = '✅ Goed uitgerust — klaar voor intensiteit of race';
+  else if (tl.tsb > 5)   advEl.textContent = '👍 Fris genoeg — normaal trainen';
+  else if (tl.tsb > -10) advEl.textContent = '⚡ Licht vermoeid — goed trainingseffect';
+  else if (tl.tsb > -25) advEl.textContent = '⚠️ Vermoeid — bewust zijn van herstel';
+  else                   advEl.textContent = '🔴 Zwaar vermoeid — overload risico, rust inlassen';
+
+  const ctx = document.getElementById('chart-tl');
+  if (!ctx) return;
+  const existing = Chart.getChart(ctx);
+  if (existing) existing.destroy();
+
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  const gridColor = isDark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.06)';
+  const textColor = isDark ? 'rgba(241,245,249,.45)' : 'rgba(0,0,0,.45)';
+
+  // Toon elke 7e label
+  const sparseLabels = tl.labels.map((l, i) => i % 7 === 0 ? l : '');
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: sparseLabels,
+      datasets: [
+        { label:'Fitness (CTL)', data: tl.ctlArr, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,.08)', tension:.3, pointRadius:0, fill:true },
+        { label:'Vermoeidheid (ATL)', data: tl.atlArr, borderColor:'#f87171', backgroundColor:'transparent', tension:.3, pointRadius:0 },
+        { label:'Form (TSB)', data: tl.tsbArr, borderColor:'#60a5fa', backgroundColor:'transparent', tension:.3, pointRadius:0, borderDash:[4,2] },
+      ],
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:textColor, font:{ size:11 }, boxWidth:16 } }, tooltip:{ mode:'index', intersect:false } },
+      scales:{
+        x:{ ticks:{ color:textColor, font:{ size:10 }, maxRotation:0 }, grid:{ color:gridColor } },
+        y:{ ticks:{ color:textColor, font:{ size:10 } }, grid:{ color:gridColor } },
+      },
+    },
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// WEEKREFLECTIE
+// ══════════════════════════════════════════════════════════════
+function openReflectionModal(weekStart, existing) {
+  document.getElementById('ref-week-start').value  = weekStart;
+  document.getElementById('ref-rpe').value         = existing?.rpe || 5;
+  document.getElementById('ref-energy').value      = existing?.energy || 3;
+  document.getElementById('ref-motivation').value  = existing?.motivation || 3;
+  document.getElementById('ref-recovery').value    = existing?.recovery || 'good';
+  document.getElementById('ref-notes').value       = existing?.notes || '';
+  document.getElementById('rpe-val').textContent   = existing?.rpe || 5;
+  document.getElementById('energy-val').textContent= existing?.energy || 3;
+  document.getElementById('motiv-val').textContent = existing?.motivation || 3;
+  openModal('reflection-modal');
+}
+
+async function saveReflection() {
+  const weekStart  = document.getElementById('ref-week-start').value;
+  const data = {
+    user_id:    USER.id,
+    week_start: weekStart,
+    rpe:        parseInt(document.getElementById('ref-rpe').value),
+    energy:     parseInt(document.getElementById('ref-energy').value),
+    motivation: parseInt(document.getElementById('ref-motivation').value),
+    recovery:   document.getElementById('ref-recovery').value,
+    notes:      document.getElementById('ref-notes').value.trim(),
+  };
+  const { error } = await sb.from('week_reflections').upsert(data, { onConflict: 'user_id,week_start' });
+  if (error) { toast('Fout: ' + error.message, 'error'); return; }
+  const r = await sb.from('week_reflections').select('*').eq('user_id', USER.id).order('week_start', { ascending: false }).limit(52);
+  REFLECTIONS = r.data || [];
+  closeModal('reflection-modal');
+  generateAndRender();
+  toast('Reflectie opgeslagen!', 'success');
+}
+
+// ══════════════════════════════════════════════════════════════
+// PERSOONLIJKE RECORDS
+// ══════════════════════════════════════════════════════════════
+function renderPRs() {
+  const prs = PROFILE?.personal_records || {};
+  const fields = ['swim_400','swim_1500','swim_1900','swim_3800','bike_20','bike_40','bike_90','bike_180','run_5k','run_10k','run_hm','run_m'];
+  fields.forEach(key => {
+    const el = document.getElementById('pr-' + key.replace('_','-'));
+    if (el) el.value = prs[key] || '';
+  });
+}
+
+async function savePRs() {
+  const prs = {};
+  document.querySelectorAll('.pr-field').forEach(el => {
+    const key = el.dataset.pr;
+    const val = el.value.trim();
+    if (val) prs[key] = val;
+  });
+  const { error } = await sb.from('profiles').update({ personal_records: prs }).eq('id', USER.id);
+  if (error) { toast('Fout: ' + error.message, 'error'); return; }
+  PROFILE.personal_records = prs;
+  toast('Persoonlijke records opgeslagen!', 'success');
+}
+
+// ══════════════════════════════════════════════════════════════
+// RACE VOEDINGSPLAN
+// ══════════════════════════════════════════════════════════════
+function calcRaceNutrition(evt) {
+  const type = evt.type;
+  // Schat raceduur: gebruik doeltijd als beschikbaar, anders schatting
+  let totalMinutes = 0;
+  if (evt.goal_time) {
+    const parts = String(evt.goal_time).split(':').map(Number);
+    if (parts.length === 3) totalMinutes = parts[0]*60 + parts[1] + parts[2]/60;
+    else if (parts.length === 2) totalMinutes = parts[0] + parts[1]/60;
+  } else {
+    const est = { 'sprint-tri':75, 'olympic-tri':120, 'HIM':270, 'IM':600, 'marathon':240, 'HM':110, '10K':55, '5K':25, 'duathlon':90 };
+    totalMinutes = est[type] || 120;
+  }
+
+  const hours = totalMinutes / 60;
+
+  // Koolhydraatbehoefte per uur (g/uur)
+  // < 1u: 30-60g/u, 1-2.5u: 60g/u, > 2.5u: 90g/u (met meerdere transporters)
+  let carbsPerHour, fluidMlPerHour, sodiumMgPerHour;
+  if (hours < 1)        { carbsPerHour = 30;  fluidMlPerHour = 400; sodiumMgPerHour = 200; }
+  else if (hours < 2.5) { carbsPerHour = 60;  fluidMlPerHour = 500; sodiumMgPerHour = 400; }
+  else if (hours < 4)   { carbsPerHour = 75;  fluidMlPerHour = 600; sodiumMgPerHour = 500; }
+  else                  { carbsPerHour = 90;  fluidMlPerHour = 700; sodiumMgPerHour = 600; }
+
+  // Bikefase en runfase apart (andere absorptie)
+  const SPLITS = {
+    'sprint-tri':  { bikeH:0.50, runH:0.25 },
+    'olympic-tri': { bikeH:1.0,  runH:0.55 },
+    'HIM':         { bikeH:2.5,  runH:1.85 },
+    'IM':          { bikeH:5.5,  runH:4.2  },
+    'duathlon':    { bikeH:1.0,  runH:0.75 },
+    'marathon':    { bikeH:0,    runH:hours },
+    'HM':          { bikeH:0,    runH:hours },
+  };
+  const sp = SPLITS[type] || { bikeH: 0, runH: hours };
+
+  const totalCarbs    = Math.round(carbsPerHour * hours);
+  const totalFluidMl  = Math.round(fluidMlPerHour * hours);
+  const totalSodiumMg = Math.round(sodiumMgPerHour * hours);
+
+  // Gel = 22-25g koolhydraten, elke 20-30 min
+  const gelCarbs    = 22;
+  const gelsNeeded  = Math.ceil(totalCarbs / gelCarbs);
+  const gelInterval = Math.round(totalMinutes / gelsNeeded);
+
+  // Bidons (650ml per bidon)
+  const bidons = Math.ceil(totalFluidMl / 650);
+  const zoutTabs = Math.ceil(totalSodiumMg / 250); // 250mg per tab
+
+  return {
+    hours: hours.toFixed(1), totalMinutes: Math.round(totalMinutes),
+    carbsPerHour, totalCarbs, gelsNeeded, gelInterval,
+    totalFluidMl, bidons, totalSodiumMg, zoutTabs,
+    sp,
+  };
+}
+
+function openNutritionModal(evt) {
+  const n = calcRaceNutrition(evt);
+  document.getElementById('nutrition-title').textContent = `Voedingsplan — ${evt.name}`;
+
+  const gelTimeline = [];
+  for (let i = 1; i <= n.gelsNeeded; i++) {
+    gelTimeline.push(`<span style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:12px">+${i * n.gelInterval}min</span>`);
+  }
+
+  document.getElementById('nutrition-body').innerHTML = `
+    <div style="background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:var(--r-sm);padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--t2)">
+      Gebaseerd op een raceduur van ~${Math.floor(n.totalMinutes/60)}u${String(Math.round(n.totalMinutes%60)).padStart(2,'0')}
+      ${evt.goal_time ? ` (doeltijd ${evt.goal_time})` : ' (schatting)'}.
+      Pas aan op jouw maagtolerantie — train dit op training!
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div style="background:var(--bg2);border-radius:var(--r-sm);padding:12px;text-align:center">
+        <div style="font-family:var(--font-c);font-size:28px;font-weight:900;color:var(--orange)">${n.carbsPerHour}g</div>
+        <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:1px">Koolhydraten/uur</div>
+      </div>
+      <div style="background:var(--bg2);border-radius:var(--r-sm);padding:12px;text-align:center">
+        <div style="font-family:var(--font-c);font-size:28px;font-weight:900;color:var(--blue)">${n.totalFluidMl}ml</div>
+        <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:1px">Totaal vocht</div>
+      </div>
+      <div style="background:var(--bg2);border-radius:var(--r-sm);padding:12px;text-align:center">
+        <div style="font-family:var(--font-c);font-size:28px;font-weight:900;color:var(--accent)">${n.gelsNeeded}</div>
+        <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:1px">Gels (à ${22}g koolh.)</div>
+      </div>
+      <div style="background:var(--bg2);border-radius:var(--r-sm);padding:12px;text-align:center">
+        <div style="font-family:var(--font-c);font-size:28px;font-weight:900;color:var(--yellow)">${n.zoutTabs}</div>
+        <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:1px">Zouttabs (${n.totalSodiumMg}mg Na)</div>
+      </div>
+    </div>
+
+    <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--t2)">⏱ Gel-timing (elke ~${n.gelInterval} min)</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">${gelTimeline.join('')}</div>
+
+    <div style="font-size:13px;color:var(--t2)">
+      <div style="font-weight:700;margin-bottom:6px">📋 Regels</div>
+      <ul style="padding-left:18px;line-height:1.9">
+        <li>Start voeden <strong>na 20-30 min</strong>, niet meteen</li>
+        <li>Nooit een gel droog nemen — altijd water erbij</li>
+        <li>Bidons: ~${n.bidons} × 650ml${n.sp.bikeH > 0 ? ` — vul bij op de fiets` : ''}</li>
+        ${n.sp.runH > 0 ? `<li>Lopen: gel elke aide-station of ${Math.round(n.gelInterval)} min</li>` : ''}
+        <li>Zouttabs: 1 per ${Math.round(60/(n.zoutTabs/parseFloat(n.hours)))} min in de hitte</li>
+        <li><strong>Train dit exact tijdens je lange trainingen!</strong></li>
+      </ul>
+    </div>
+  `;
+  openModal('nutrition-modal');
+}
+
+// ══════════════════════════════════════════════════════════════
+// RACE-DAG CHECKLIST
+// ══════════════════════════════════════════════════════════════
+function openChecklistModal(evt) {
+  const type  = evt.type;
+  const isTri = ['HIM','IM','olympic-tri','sprint-tri'].includes(type);
+  const isDu  = type === 'duathlon';
+  const isRun = ['5K','10K','HM','marathon'].includes(type);
+
+  document.getElementById('checklist-title').textContent = `Race-dag checklist — ${evt.name}`;
+
+  const section = (title, color, items) => `
+    <div style="margin-bottom:14px">
+      <div style="font-weight:700;font-size:13px;color:${color};margin-bottom:6px">${title}</div>
+      ${items.map(item => `
+        <label style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)">
+          <input type="checkbox" style="margin-top:2px;accent-color:var(--accent)">
+          <span>${item}</span>
+        </label>`).join('')}
+    </div>`;
+
+  const racemorning = [
+    `Ontbijt 2-3u voor start: rijst/havermout + banaan (${type==='IM'?'~1000':'~600'}kcal)`,
+    'Koffie/cafeïne 45-60 min voor start',
+    `Water drinken tot urine lichtgeel is`,
+    'Nummers/chip bevestigen',
+    'Zonnebrand aanbrengen (ook nek/oren)',
+    'Laatste gel 15 min voor start',
+    type === 'IM' || type === 'HIM' ? 'Body Glide of vaseline op wreef, oksels, nek' : '',
+  ].filter(Boolean);
+
+  const swimGear = [
+    'Wetsuit (controleer op gaten)',
+    'Zwembril (+ reservebril in transitas)',
+    'Badmuts race (check kleur die organisatie vraagt)',
+    'Oren- of neuspropjes (indien gewenst)',
+    'Body Glide rondom hals/polsen (wetsuit)',
+  ];
+
+  const t1Items = [
+    'Helm (verplicht dicht vóór je fiets aanraakt)',
+    'Fietsen/wielerschoenen',
+    'Zonnebril',
+    'Bidons op fiets gevuld',
+    'Gels/voeding op fiets bevestigd',
+    'Fiets in juiste versnelling gezet',
+    'Socks (optioneel voor snelheid)',
+    'Vaseline voor zadelproblemen',
+  ];
+
+  const bikeGear = [
+    'Bidons controleren',
+    'Band en CO₂/pomp op fiets',
+    'Fietscomputer geladen',
+    'Powerlink reserveketting (IM)',
+    type === 'IM' ? 'Extra binnenband op fiets' : '',
+  ].filter(Boolean);
+
+  const t2Items = [
+    'Loopschoenen (vooraf losgemaakt)',
+    'Raceband of bib-nummer',
+    'Visored pet of looppet (UV-bescherming)',
+    'Extra gel(s) voor de loop',
+    'Cola bij aide-stations later in de run',
+  ];
+
+  const runItems = [
+    'Loopschoenen correct gestrikt',
+    'Gels + timing in hoofd',
+    'Elke aide-station: water op hoofd + sponzen',
+    type === 'IM' ? 'Wandelen de eerste 500m van de run na lange fiets' : '',
+    'Pace-strategie: start conservatief, bouw op',
+  ].filter(Boolean);
+
+  const generalRun = [
+    'Racenummer bevestigd',
+    'Chip aan schoen',
+    'Loopschoenen',
+    'Sokken',
+    'Cap/zonnebril',
+    'Gels (als nodig)',
+    'Arm-warmers (bij kou)',
+    'Vaseline (tepels)',
+  ];
+
+  let html = '';
+  html += section('🌅 Racemorgen protocol', 'var(--yellow)', racemorning);
+  if (isTri) {
+    html += section('🏊 Zwemspullen', 'var(--blue)', swimGear);
+    html += section('🔄 T1-tas (zwem → fiets)', 'var(--accent)', t1Items);
+    html += section('🚴 Fietsfase', 'var(--purple)', bikeGear);
+    html += section('🔄 T2-tas (fiets → run)', 'var(--orange)', t2Items);
+    html += section('🏃 Loopfase', 'var(--red)', runItems);
+  } else if (isDu) {
+    html += section('🔄 T1-tas', 'var(--accent)', t1Items);
+    html += section('🚴 Fietsfase', 'var(--purple)', bikeGear);
+    html += section('🔄 T2-tas', 'var(--orange)', t2Items);
+    html += section('🏃 Loopfase', 'var(--red)', runItems);
+  } else if (isRun) {
+    html += section('🏃 Uitrusting', 'var(--orange)', generalRun);
+  }
+
+  document.getElementById('checklist-body').innerHTML = html;
+  openModal('checklist-modal');
 }
 </script>
 </body>
