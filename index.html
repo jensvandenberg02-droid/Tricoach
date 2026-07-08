@@ -1128,11 +1128,19 @@ a { color: var(--accent); text-decoration: none; }
     <div class="form-row">
       <div class="form-group"><label>Datum</label><input class="form-control" id="ev-date" type="date"></div>
       <div class="form-group"><label>Prioriteit</label>
-        <select class="form-control" id="ev-priority">
+        <select class="form-control" id="ev-priority" onchange="onEventPriorityChange()">
           <option value="A">A — Hoofddoel</option>
           <option value="B">B — Tussendoel</option>
           <option value="C">C — Trainingswedstrijd</option>
         </select>
+      </div>
+    </div>
+    <div class="form-group" id="goal-time-group" style="display:none">
+      <label>🎯 Doeltijd</label>
+      <input class="form-control" id="ev-goal-time" placeholder="bv. 4:30:00 of 1:45:30"
+             style="font-variant-numeric:tabular-nums">
+      <div style="font-size:12px;color:var(--t3);margin-top:4px">
+        Het trainingsplan wordt volledig afgestemd op deze tijd — paces in elke sessie worden berekend vanuit jouw doeltijd.
       </div>
     </div>
     <div class="form-group"><label>Type</label>
@@ -1695,100 +1703,191 @@ function makeSessions(z, phase, type, weekNum) {
       });
     }
 
-    // Wo: Fiets + brick-loop (build/peak) OF duurrit (base)
+    // ── Schaalwaarden per eventtype ──────────────────────────────────────────────
+    // Loopvolume, fietsvolume en brick-duur schalen mee met de race-afstand.
+    // HIM/IM hebben een LANGE DUURLOOP op donderdag (geen interval/tempo).
+    // Sprint/Olympic hebben een kortere kwaliteitsloop (interval of tempo).
+
+    const isLongDistTri = ['HIM', 'IM'].includes(type);
+
+    // Weekvolume loopwerk in PEAK = race-looponderdeel (HIM 21km, IM 42km)
+    // Verdeling: lange duurloop (Do) + brick (Wo) + herstelloop (Zo) = race-run-afstand
+    //
+    //  HIM peak: 18km (Do) + 10 min brick (~1.7km) + 10 min herstel (~1.7km) ≈ 21km
+    //  IM  peak: 28km (Do) + 40 min brick (~7km)   + 45 min herstel (~7km)   ≈ 42km
+
+    // Donderdag loopvolume per eventtype en fase
+    const DO_RUN = {
+      'sprint-tri':  { baseSecs:1800, buildSets:5,  buildDist:400,  peakDist:5000  },
+      'olympic-tri': { baseSecs:2700, buildSets:6,  buildDist:800,  peakDist:8000  },
+      'duathlon':    { baseSecs:2700, buildSets:6,  buildDist:800,  peakDist:8000  },
+      'HIM':         { baseDist:10000, buildDist:14000, peakDist:18000 }, // peak 18km (user bevestigd)
+      'IM':          { baseDist:16000, buildDist:24000, peakDist:28000 }, // + brick+herstel ≈ 42km/week
+    };
+    const dr = DO_RUN[type] || DO_RUN['olympic-tri'];
+
+    // Brick-loopduur na fiets (in seconden)
+    // HIM peak: BEWUST KORT (600s = 10 min ≈ 1.7km) — lange duurloop vult al 18/21km
+    // IM  peak: 2400s = 40 min ≈ 7km — nodig om weekdoel van 42km te halen
+    const BRICK_SECS = {
+      'sprint-tri':  { base: 600,  build: 600,  peak: 900  },
+      'olympic-tri': { base: 600,  build: 900,  peak: 1200 },
+      'HIM':         { base: 900,  build: 1200, peak: 600  },
+      'IM':          { base: 1200, build: 1800, peak: 2400 },
+      'duathlon':    { base: 600,  build: 900,  peak: 1200 },
+    };
+    const brickSecs = (BRICK_SECS[type] || BRICK_SECS['olympic-tri'])[phase] || 900;
+    const brickMins = Math.round(brickSecs / 60);
+
+    // Fietsuren zaterdag per eventtype en fase
+    const BIKE_HOURS = {
+      'sprint-tri':  { base: 1.5, build: 2,   peak: 2.5 },
+      'olympic-tri': { base: 2,   build: 2.5, peak: 3   },
+      'HIM':         { base: 2.5, build: 3.5, peak: 4.5 },
+      'IM':          { base: 3.5, build: 5,   peak: 6   },
+      'duathlon':    { base: 1.5, build: 2,   peak: 2.5 },
+    };
+    const bikeH = (BIKE_HOURS[type] || BIKE_HOURS['olympic-tri'])[phase] || 2;
+
+    // Woensdag fietssessie:
+    //   Base  → pure duurrit Z2, GEEN brick (aerobe basis eerst)
+    //   Build → sweetspot + brick (eerste brick-overgangen)
+    //   Peak  → VO₂max (sprint/olympic) of sweetspot (HIM/IM) + brick
     if (phase === 'base') {
+      const baseRideMins = weekNum > 6 ? Math.round(bikeH * 60 + 15) : Math.round(bikeH * 60);
       sessions.push({
         day:'Wo', type:'bike', name:'Duurrit Z2',
-        meta:`${weekNum > 6 ? 100 : 75} min Z2`, desc:'Aerobe basis fiets opbouwen',
+        meta:`${baseRideMins} min Z2`,
         garminSteps: [
           bikeWarmup,
-          { kind:'interval', secs:(weekNum > 6 ? 4800 : 3300), desc:`${weekNum > 6 ? 80 : 55} min Z2` },
+          { kind:'interval', secs:baseRideMins * 60 - 1200, desc:`${baseRideMins - 20} min Z2` },
           bikeCooldown,
         ],
       });
     } else if (phase === 'build') {
+      const bikeIntDesc = isLongDistTri
+        ? `3×20 min @ ${z.z4}W sweetspot → ${brickMins} min brick-loop`
+        : `2×20 min @ ${z.z4}W sweetspot → ${brickMins} min brick-loop`;
       sessions.push({
         day:'Wo', type:'bike', name:'Sweetspot + brick-loop',
-        meta:`2×20 min @ ${z.z4}W → 15 min brick-loop`,
-        desc:'Drempelkracht + directe overgang naar lopen — race-gevoel trainen',
+        meta:bikeIntDesc,
+        desc:'Drempelkracht opbouwen + directe overgang naar lopen — race-specificiteit',
         garminSteps: [
           bikeWarmup,
-          { kind:'repeat', sets:2, steps:[
+          { kind:'repeat', sets: isLongDistTri ? 3 : 2, steps:[
             { kind:'interval', secs:1200, desc:`20 min @ ${z.z4}W sweetspot` },
             { kind:'recovery', secs:300,  desc:'5 min Z1' },
           ]},
           { kind:'cooldown', secs:300, desc:'5 min afrijden' },
-          // Brick-loop direct erna
-          { kind:'interval', secs:900, desc:`15 min brick-loop @ ${z.runTempo}/km` },
+          { kind:'interval', secs:brickSecs, desc:`${brickMins} min brick-loop @ ${z.runEasy}/km` },
         ],
       });
     } else { // peak
-      sessions.push({
-        day:'Wo', type:'bike', name:'VO₂max fiets + brick-loop',
-        meta:`4×8 min @ ${z.z5}W → 20 min brick-loop`,
-        desc:'Maximale fietsvermogen, gevolgd door brick — piek race-specificiteit',
-        garminSteps: [
-          bikeWarmup,
-          { kind:'repeat', sets:4, steps:[
-            { kind:'interval', secs:480, desc:`8 min @ ${z.z5}W` },
-            { kind:'recovery', secs:240, desc:'4 min Z1' },
-          ]},
-          { kind:'cooldown', secs:300, desc:'5 min afrijden' },
-          { kind:'interval', secs:1200, desc:`20 min brick-loop @ ${z.runTempo}/km` },
-        ],
-      });
-    }
-
-    // Do: Intervalloop of tempoloop
-    // BEWUST op donderdag, NIET op dinsdag voor triatleten (zo staat zwem op di)
-    // → 48 uur na woensdag fiets/brick = voldoende herstel voor kwaliteitsloop
-    if (!isDu) {
-      if (phase === 'base') {
+      // Sprint/Olympic: VO₂max intervals (korte race = hoge intensiteit)
+      // HIM/IM: sweetspot blokken (lange race = vol vermogen, niet VO₂max)
+      if (isLongDistTri) {
         sessions.push({
-          day:'Do', type:'run', name:'Duurloop Z2',
-          meta:`45 min Z2 @ ${z.runEasy}/km`, desc:'Aerobe basis — rustig, hartslag laag houden',
+          day:'Wo', type:'bike', name:'Sweetspot blokken + brick-loop',
+          meta:`2×30 min @ ${z.z4}W → ${brickMins} min brick-loop`,
+          desc:'Race-specifieke inspanning — langdurig hoog vermogen + brick voor overgangsgevoel',
           garminSteps: [
-            runWarmup,
-            { kind:'interval', secs:1500, desc:`25 min Z2 @ ${z.runEasy}/km` },
-            runCooldown,
-          ],
-        });
-      } else if (phase === 'build') {
-        sessions.push({
-          day:'Do', type:'run', name:'Intervalloop',
-          meta:`6×800m @ ${z.runFast}/km`,
-          desc:'VO₂max training — harde lopsessie van de week, 48 uur herstel voor weekend',
-          garminSteps: [
-            runWarmup,
-            { kind:'repeat', sets:6, steps:[
-              { kind:'interval', dist:800, desc:`800m @ ${z.runFast}/km` },
-              { kind:'recovery', secs:120, desc:'2 min herstel' },
+            bikeWarmup,
+            { kind:'repeat', sets:2, steps:[
+              { kind:'interval', secs:1800, desc:`30 min @ ${z.z4}W sweetspot` },
+              { kind:'recovery', secs:600,  desc:'10 min Z1' },
             ]},
-            runCooldown,
+            { kind:'cooldown', secs:300, desc:'5 min afrijden' },
+            { kind:'interval', secs:brickSecs, desc:`${brickMins} min brick-loop @ ${z.runEasy}/km` },
           ],
         });
-      } else { // peak
+      } else {
         sessions.push({
-          day:'Do', type:'run', name:'Tempoloop',
-          meta:`6 km @ ${z.runTempo}/km`,
-          desc:'Racespecifieke drempelintensiteit — loopt goed in combinatie met woensdag brick',
+          day:'Wo', type:'bike', name:'VO₂max fiets + brick-loop',
+          meta:`4×8 min @ ${z.z5}W → ${brickMins} min brick-loop`,
+          desc:'Maximale fietsvermogen + directe brick — piek race-specificiteit',
           garminSteps: [
-            runWarmup,
-            { kind:'interval', dist:6000, desc:`6 km @ ${z.runTempo}/km` },
-            runCooldown,
+            bikeWarmup,
+            { kind:'repeat', sets:4, steps:[
+              { kind:'interval', secs:480, desc:`8 min @ ${z.z5}W` },
+              { kind:'recovery', secs:240, desc:'4 min Z1' },
+            ]},
+            { kind:'cooldown', secs:300, desc:'5 min afrijden' },
+            { kind:'interval', secs:brickSecs, desc:`${brickMins} min brick-loop @ ${z.runEasy}/km` },
           ],
         });
       }
+    }
+
+    // Do: Loopsessie — type en volume afhankelijk van eventtype
+    // HIM/IM: LANGE DUURLOOP (donderdag = de lange loopdag in triatlon)
+    // Sprint/Olympic: interval of tempo (kwaliteit over volume)
+    if (!isDu) {
+      if (isLongDistTri) {
+        // HIM en IM: donderdag is de lange loopdag — vergelijkbaar met marathon-trainingsplan
+        const longDist = dr[`${phase}Dist`] || dr.baseDist;
+        const longKm   = Math.round(longDist / 1000);
+        sessions.push({
+          day:'Do', type:'run', name:'Lange duurloop',
+          meta:`${longKm} km Z2 @ ${z.runEasy}/km`,
+          desc:`Langste lopsessie van de week — essentieel voor ${type === 'IM' ? 'Ironman' : 'HIM'} voorbereiding. Hartslag Z2 houden.`,
+          garminSteps: [
+            runWarmup,
+            { kind:'interval', dist:longDist, desc:`${longKm} km Z2 @ ${z.runEasy}/km` },
+            runCooldown,
+          ],
+        });
+      } else {
+        // Sprint / Olympic: kwaliteitsloop
+        if (phase === 'base') {
+          const baseMins = Math.round(dr.baseSecs / 60);
+          sessions.push({
+            day:'Do', type:'run', name:'Duurloop Z2',
+            meta:`${baseMins} min Z2 @ ${z.runEasy}/km`,
+            desc:'Aerobe basis — rustig, hartslag laag houden',
+            garminSteps: [
+              runWarmup,
+              { kind:'interval', secs:dr.baseSecs - 1200, desc:`${baseMins - 20} min Z2 @ ${z.runEasy}/km` },
+              runCooldown,
+            ],
+          });
+        } else if (phase === 'build') {
+          sessions.push({
+            day:'Do', type:'run', name:'Intervalloop',
+            meta:`${dr.buildSets}×${dr.buildDist}m @ ${z.runFast}/km`,
+            desc:'VO₂max training — 48 uur na woensdag fiets = voldoende herstel',
+            garminSteps: [
+              runWarmup,
+              { kind:'repeat', sets:dr.buildSets, steps:[
+                { kind:'interval', dist:dr.buildDist, desc:`${dr.buildDist}m @ ${z.runFast}/km` },
+                { kind:'recovery', secs:dr.buildDist >= 800 ? 120 : 90, desc:`${dr.buildDist >= 800 ? 2 : 1.5} min herstel` },
+              ]},
+              runCooldown,
+            ],
+          });
+        } else { // peak
+          const peakKm = Math.round(dr.peakDist / 1000);
+          sessions.push({
+            day:'Do', type:'run', name:'Tempoloop',
+            meta:`${peakKm} km @ ${z.runTempo}/km`,
+            desc:'Racespecifieke drempelintensiteit',
+            garminSteps: [
+              runWarmup,
+              { kind:'interval', dist:dr.peakDist, desc:`${peakKm} km @ ${z.runTempo}/km` },
+              runCooldown,
+            ],
+          });
+        }
+      }
     } else {
-      // Duathlon Do: Fiets (dag na Di run = andere sport = OK)
+      // Duathlon Do: Fiets (andere sport na Di loopsessie)
       sessions.push({
         day:'Do', type:'bike',
         name: phase === 'base' ? 'Duurrit' : 'Sweetspot',
-        meta: phase === 'base' ? `75 min Z2` : `2×20 min @ ${z.z4}W`,
+        meta: phase === 'base' ? `${Math.round(bikeH * 60)} min Z2` : `2×20 min @ ${z.z4}W`,
         desc:'Fiets na loopdag — andere spiergroepen, geen conflict',
         garminSteps: phase === 'base' ? [
           bikeWarmup,
-          { kind:'interval', secs:3300, desc:'55 min Z2' },
+          { kind:'interval', secs:Math.round(bikeH * 3600) - 1200, desc:`${Math.round(bikeH * 60) - 20} min Z2` },
           bikeCooldown,
         ] : [
           bikeWarmup,
@@ -1803,32 +1902,36 @@ function makeSessions(z, phase, type, weekNum) {
 
     sessions.push({ day:'Vr', type:'str', name:'Kracht + core', meta:'30 min', desc:'Squat, deadlift, plank, glutes — lichte dag voor het weekend' });
 
-    // Za: Lange fietsrit — grootste sessie van de week
-    const bikeHours = phase === 'base' ? (weekNum > 8 ? 2.5 : 2)
-                    : phase === 'build' ? (weekNum > 10 ? 3.5 : 3)
-                    : (weekNum > 12 ? 4 : 3.5);
+    // Za: Lange fietsrit — volume schaalt met eventtype
     sessions.push({
       day:'Za', type:'bike', name:'Lange rit',
-      meta:`${bikeHours} uur Z2`, desc:'Grootste volume dag — vetverbranding en duurvermogen opbouwen',
+      meta:`${bikeH} uur Z2`,
+      desc:`Grootste volume dag — vetverbranding en duurvermogen. ${type === 'IM' ? 'Ironman-specifieke rijtijd.' : ''}`,
       garminSteps: [
         bikeWarmup,
-        { kind:'interval', secs: Math.round((bikeHours * 3600) - 1200), desc:`${bikeHours} uur Z2 endurance` },
+        { kind:'interval', secs: Math.round(bikeH * 3600 - 1200), desc:`${bikeH} uur Z2 endurance` },
         bikeCooldown,
       ],
     });
 
-    // Zo: KORTE herstelloop — BEWUST laag volume na lange fiets Za
-    // ❌ NOOIT lange duurloop op zondag na lange fietsrit!
-    const recMins = phase === 'base' ? 30 : phase === 'build' ? 35 : 40;
-    const recRunSecs = recMins === 30 ? 1200 : recMins === 35 ? 1500 : 1800;
+    // Zo: Herstelloop — duur zo berekend dat weekdoel loopvolume wordt gehaald
+    // HIM peak: 10 min (≈1.7km) → totaal week ≈ 21km
+    // IM  peak: 45 min (≈7km)   → totaal week ≈ 42km
+    // ❌ NOOIT lang lopen op zondag na lange fietsrit!
+    const recRunMins =
+      type === 'HIM' ? (phase === 'base' ? 30 : phase === 'build' ? 35 : 10)
+    : type === 'IM'  ? (phase === 'base' ? 35 : phase === 'build' ? 40 : 45)
+    : isLongDistTri  ? (phase === 'base' ? 30 : phase === 'build' ? 35 : 40)
+    :                  (phase === 'base' ? 25 : phase === 'build' ? 30 : 35);
+
     sessions.push({
       day:'Zo', type:'run', name:'Herstelloop Z1',
-      meta:`${recMins} min Z1 @ ${z.runEasy}/km`,
-      desc:`Actief herstel na de lange zaterdag-fietsrit — bewust kort en rustig, hartslag in Z1 houden`,
+      meta:`${recRunMins} min Z1 @ ${z.runEasy}/km`,
+      desc:`Actief herstel na lange zaterdag-fietsrit — hartslag Z1, bewust kort${type === 'HIM' && phase === 'peak' ? ' (weekvolume is al gehaald via duurloop donderdag)' : ''}`,
       garminSteps: [
-        { kind:'warmup',   secs:300, desc:'5 min inlopen' },
-        { kind:'interval', secs:recRunSecs - 600, desc:`${recMins - 10} min Z1 @ ${z.runEasy}/km` },
-        { kind:'cooldown', secs:300, desc:'5 min uitlopen' },
+        { kind:'warmup',   secs:Math.min(300, recRunMins * 30), desc:'inlopen' },
+        { kind:'interval', secs:Math.max(300, recRunMins * 60 - 600), desc:`${Math.max(5, recRunMins - 10)} min Z1 @ ${z.runEasy}/km` },
+        { kind:'cooldown', secs:Math.min(300, recRunMins * 30), desc:'uitlopen' },
       ],
     });
 
@@ -2176,9 +2279,67 @@ function applyInjuries(sessions, injuries) {
   });
 }
 
+// Rekent trainingspaces terug vanuit een A-event doeltijd.
+// Geeft null terug als het event geen A-event is of geen doeltijd heeft.
+// De teruggekeerde waarden overschrijven de overeenkomstige velden in z.
+function calcGoalPaces(evt) {
+  if (!evt || evt.priority !== 'A' || !evt.goal_time) return null;
+
+  // Parseer "u:mm:ss" of "mm:ss" naar seconden
+  const parts = String(evt.goal_time).split(':').map(Number).filter(n => !isNaN(n));
+  const totalSecs = parts.length === 3 ? parts[0]*3600 + parts[1]*60 + parts[2]
+                  : parts.length === 2 ? parts[0]*60 + parts[1] : 0;
+  if (!totalSecs) return null;
+
+  // Seconden/km → "m:ss" string
+  const fmt = s => `${Math.floor(s/60)}:${String(Math.round(s % 60)).padStart(2,'0')}`;
+
+  // ── Loop-events: doeltijd is direct de finishtijd ────────────────────────────
+  const RUN_DIST = { marathon: 42.195, HM: 21.0975, '10K': 10, '5K': 5 };
+  if (RUN_DIST[evt.type]) {
+    const racePace = totalSecs / RUN_DIST[evt.type]; // sec/km
+    return {
+      runTempo: fmt(racePace),                          // drempelsnelheid ≈ race pace
+      runEasy:  fmt(racePace + 75),                     // Z2 = 75s/km langzamer
+      runFast:  fmt(Math.max(180, racePace - 15)),      // VO₂max intervals = 15s/km sneller
+    };
+  }
+
+  // ── Triatlon/duathlon: splits schatten op basis van standaard verhoudingen ───
+  // Zwem en fiets worden gebruikt voor trainingstempo's in zwem- en fietssessies.
+  const SPLITS = {
+    'sprint-tri':  { run: 0.30, swim: 0.15, bike: 0.50, t12: 0.05, runKm: 5,    swimM: 750,  bikeKm: 20  },
+    'olympic-tri': { run: 0.31, swim: 0.17, bike: 0.47, t12: 0.05, runKm: 10,   swimM: 1500, bikeKm: 40  },
+    'HIM':         { run: 0.34, swim: 0.17, bike: 0.45, t12: 0.04, runKm: 21.1, swimM: 1900, bikeKm: 90  },
+    'IM':          { run: 0.31, swim: 0.11, bike: 0.55, t12: 0.03, runKm: 42.2, swimM: 3800, bikeKm: 180 },
+    'duathlon':    { run: 0.60, swim: 0,    bike: 0.38, t12: 0.02, runKm: 15,   swimM: 0,    bikeKm: 40  },
+  };
+  const sp = SPLITS[evt.type];
+  if (!sp) return null;
+
+  const runSecs  = totalSecs * sp.run;
+  const swimSecs = totalSecs * sp.swim;
+  const runPace  = runSecs / sp.runKm; // sec/km
+
+  const result = {
+    runTempo: fmt(runPace),
+    runEasy:  fmt(runPace + 75),
+    runFast:  fmt(Math.max(180, runPace - 15)),
+  };
+
+  // Zwemtempo toevoegen als het event zwemmen heeft
+  if (sp.swimM > 0 && swimSecs > 0) {
+    const swimPace = swimSecs / (sp.swimM / 100); // sec/100m
+    result.swimTempo = fmt(swimPace);
+    result.swimEasy  = fmt(swimPace + 12);
+  }
+
+  return result;
+}
+
 function generatePlan() {
   const now    = new Date();
-  const z      = calcZones(getEffectivePaces());
+  const zBase  = calcZones(getEffectivePaces()); // basiszone vanuit profiel
   const future = EVENTS.filter(e => new Date(e.date) >= now)
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -2261,7 +2422,11 @@ function generatePlan() {
     }
     // Anders: base (aëroob fundament)
 
-    let sessions = makeSessions(z, phase, nextEvt.type, w + 1);
+    // Zones voor deze week: als het A-event een doeltijd heeft, reken paces terug
+    const goalOverride = calcGoalPaces(nextEvt);
+    const weekZ = goalOverride ? { ...zBase, ...goalOverride } : zBase;
+
+    let sessions = makeSessions(weekZ, phase, nextEvt.type, w + 1);
     sessions = enforcePeriodization(sessions);  // ← structurele bewaker: altijd aanroepen
     sessions = applyInjuries(sessions, INJURIES);
     if (Object.keys(AVAILABILITY).length) {
@@ -2905,6 +3070,7 @@ function renderEventsTab() {
           ${resultsHtml}
         </div>
         <span class="priority-badge priority-${e.priority}">${e.priority}</span>
+        ${e.goal_time && e.priority === 'A' ? `<span style="font-size:11px;font-weight:700;color:var(--accent);background:rgba(34,197,94,.12);border-radius:6px;padding:2px 7px;white-space:nowrap">🎯 ${e.goal_time}</span>` : ''}
         <div style="display:flex;gap:6px">
           ${isPast ? `<button class="btn btn-ghost btn-sm" onclick="openResultModal(${eJson})" title="Tijden invoeren">🏁</button>` : ''}
           <button class="btn btn-ghost btn-sm" onclick="openEventModal(${eJson})">✏️</button>
@@ -2914,19 +3080,26 @@ function renderEventsTab() {
   }).join('');
 }
 
+function onEventPriorityChange() {
+  const isA = document.getElementById('ev-priority').value === 'A';
+  document.getElementById('goal-time-group').style.display = isA ? '' : 'none';
+}
+
 function openEventModal(ev) {
   document.getElementById('event-modal-title').textContent = ev ? 'Event bewerken' : 'Nieuw event';
-  document.getElementById('event-id').value   = ev?.id || '';
-  document.getElementById('ev-name').value    = ev?.name || '';
-  document.getElementById('ev-date').value    = ev?.date || '';
-  document.getElementById('ev-priority').value= ev?.priority || 'A';
-  document.getElementById('ev-type').value    = ev?.type || 'HIM';
-  document.getElementById('ev-country').value = ev?.country || '';
-  document.getElementById('ev-city').value    = ev?.city || '';
-  document.getElementById('ev-swim').value    = ev?.dist_swim || '';
-  document.getElementById('ev-bike').value    = ev?.dist_bike || '';
-  document.getElementById('ev-run').value     = ev?.dist_run || '';
-  document.getElementById('ev-notes').value   = ev?.notes || '';
+  document.getElementById('event-id').value    = ev?.id || '';
+  document.getElementById('ev-name').value     = ev?.name || '';
+  document.getElementById('ev-date').value     = ev?.date || '';
+  document.getElementById('ev-priority').value = ev?.priority || 'A';
+  document.getElementById('ev-type').value     = ev?.type || 'HIM';
+  document.getElementById('ev-country').value  = ev?.country || '';
+  document.getElementById('ev-city').value     = ev?.city || '';
+  document.getElementById('ev-swim').value     = ev?.dist_swim || '';
+  document.getElementById('ev-bike').value     = ev?.dist_bike || '';
+  document.getElementById('ev-run').value      = ev?.dist_run || '';
+  document.getElementById('ev-notes').value    = ev?.notes || '';
+  document.getElementById('ev-goal-time').value= ev?.goal_time || '';
+  onEventPriorityChange(); // toon/verberg doeltijd-veld op basis van huidige prioriteit
   openModal('event-modal');
 }
 
@@ -2944,6 +3117,9 @@ async function saveEvent() {
     dist_bike: parseFloat(document.getElementById('ev-bike').value) || null,
     dist_run:  parseFloat(document.getElementById('ev-run').value)  || null,
     notes:     document.getElementById('ev-notes').value.trim(),
+    goal_time: document.getElementById('ev-priority').value === 'A'
+      ? (document.getElementById('ev-goal-time').value.trim() || null)
+      : null, // goal_time enkel opslaan voor A-events
   };
   if (!data.name || !data.date) { toast('Naam en datum zijn verplicht.', 'error'); return; }
 
