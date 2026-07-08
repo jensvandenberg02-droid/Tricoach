@@ -2184,46 +2184,84 @@ function generatePlan() {
 
   if (!future.length) return [];
 
-  const target  = new Date(future[0].date);
   const msPerWk = 7 * 24 * 3600000;
-  const weeksOut= Math.ceil((target - now) / msPerWk);
-  const maxWeeks= Math.min(weeksOut + 2, 52);
+
+  // Plan loopt altijd door tot het LAATSTE event (niet stoppen na het eerste)
+  const lastEvent   = future[future.length - 1];
+  const lastTarget  = new Date(lastEvent.date);
+  const weeksToLast = Math.ceil((lastTarget - now) / msPerWk);
+  const maxWeeks    = Math.min(weeksToLast + 1, 52); // +1 herstelweek na laatste event
+
+  // Taper/peak/build/herstel duur per eventtype (voor A-events)
+  const TAPER_WEEKS_A = { 'IM': 3, 'marathon': 3, 'HIM': 2, 'HM': 2, 'olympic-tri': 2, 'duathlon': 1, 'sprint-tri': 1, '5K': 1, '10K': 1 };
+  const PEAK_WEEKS    = { 'IM': 6, 'marathon': 5, 'HIM': 4, 'HM': 3, 'olympic-tri': 4, 'duathlon': 3, 'sprint-tri': 2, '5K': 2, '10K': 3 };
+  const BUILD_WEEKS   = { 'IM': 14, 'marathon': 12, 'HIM': 10, 'HM': 8, 'olympic-tri': 10, 'duathlon': 8, 'sprint-tri': 6, '5K': 6, '10K': 8 };
+  const REC_WEEKS     = { 'IM': 3, 'marathon': 2, 'HIM': 2, 'HM': 1, 'olympic-tri': 2, 'duathlon': 1, 'sprint-tri': 1, '5K': 1, '10K': 1 };
+
+  // Zware eventtypes: B/C events van dit type krijgen ook een verlengde taper
+  // (HIM, IM, marathon, HM, ultra — fysiologische belasting is onafhankelijk van prioriteit)
+  const HEAVY_TYPES = new Set(['IM', 'HIM', 'marathon', 'HM', 'ultra']);
+
+  // Bereken taper-weken rekening houdend met event-prioriteit (A/B/C)
+  function getTaperWeeks(evt) {
+    if (evt.priority === 'A') {
+      // A-events: volledige taper per eventtype
+      return TAPER_WEEKS_A[evt.type] ?? 1;
+    } else {
+      // B- en C-events: standaard 1 week, tenzij het een zwaar eventtype is
+      return HEAVY_TYPES.has(evt.type) ? (TAPER_WEEKS_A[evt.type] ?? 2) : 1;
+    }
+  }
 
   const plan = [];
   for (let w = 0; w < maxWeeks; w++) {
     const weekStart = new Date(now.getTime() + w * msPerWk);
     weekStart.setHours(0, 0, 0, 0);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Monday
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Maandag
+    const weekEnd = new Date(weekStart.getTime() + msPerWk);
 
-    // Find events this week or within range
     const thisWeekEvents = EVENTS.filter(e => {
       const d = new Date(e.date);
-      return d >= weekStart && d < new Date(weekStart.getTime() + msPerWk);
+      return d >= weekStart && d < weekEnd;
     });
 
-    const weeksToTarget = Math.ceil((target - weekStart) / msPerWk);
+    // Voor elke week: gebruik het VOLGENDE aankomende event voor fase-bepaling
+    // Dit zorgt voor correcte fases ook na het eerste event
+    const nextEvt    = future.find(e => new Date(e.date) >= weekStart) || lastEvent;
+    const nextTarget = new Date(nextEvt.date);
+    const weeksToTarget = Math.ceil((nextTarget - weekStart) / msPerWk);
 
-    // Phase determination
+    const taperW = getTaperWeeks(nextEvt);          // ← houdt rekening met A/B/C prioriteit
+    const peakW  = PEAK_WEEKS[nextEvt.type]  ?? 3;
+    const buildW = BUILD_WEEKS[nextEvt.type] ?? 8;
+    const recW   = REC_WEEKS[nextEvt.type]   ?? 1;
+
+    // Fase bepalen — volgorde is belangrijk: race en recovery gaan vóór taper/peak
     let phase = 'base';
-    const evt = future[0];
-    if (thisWeekEvents.some(e => e.id === evt.id)) {
+    if (thisWeekEvents.some(e => e.id === nextEvt.id)) {
+      // Race staat in deze week
       phase = 'race';
-    } else if (w > 0 && EVENTS.some(e => {
+    } else if (EVENTS.some(e => {
       const evDate = new Date(e.date);
-      const recWeeks = { IM: 3, HIM: 2, marathon: 2, 'olympic-tri': 2, 'duathlon': 1, 'sprint-tri': 1, HM: 1 }[e.type] ?? 1;
-      const recEnd = new Date(evDate.getTime() + recWeeks * msPerWk);
+      const r = REC_WEEKS[e.type] ?? 1;
+      const recEnd = new Date(evDate.getTime() + r * msPerWk);
       return weekStart > evDate && weekStart <= recEnd;
     })) {
+      // Week valt in herstelperiode na een voorbij event
       phase = 'recovery';
-    } else if (weeksToTarget <= 1) {
+    } else if (weeksToTarget <= taperW) {
+      // Taper: duur afhankelijk van eventtype (IM = 3 weken, sprint = 1 week)
       phase = 'taper';
-    } else if (weeksToTarget <= 3) {
+    } else if (weeksToTarget <= taperW + peakW) {
+      // Peak: hoge intensiteit, specifieke voorbereiding
       phase = 'peak';
-    } else if (weeksToTarget <= 8) {
+    } else if (weeksToTarget <= taperW + peakW + buildW) {
+      // Build: oplopend volume en intensiteit
       phase = 'build';
     }
+    // Anders: base (aëroob fundament)
 
-    let sessions = makeSessions(z, phase, evt.type, w + 1);
+    let sessions = makeSessions(z, phase, nextEvt.type, w + 1);
     sessions = enforcePeriodization(sessions);  // ← structurele bewaker: altijd aanroepen
     sessions = applyInjuries(sessions, INJURIES);
     if (Object.keys(AVAILABILITY).length) {
