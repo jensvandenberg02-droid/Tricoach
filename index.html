@@ -3473,34 +3473,52 @@ function decodePolyline(enc) {
   return out;
 }
 
-async function initActivityMap(polylineStr, sportType) {
-  const mapEl = document.getElementById('ad-map');
-  if (!mapEl || !polylineStr) return;
-  const coords = decodePolyline(polylineStr);
+async function initActivityMap(polylineStr, sportType, latlngStream) {
+  // Coördinaten ophalen: eerst encoded polyline, anders raw latlng stream
+  let coords = [];
+  if (polylineStr) {
+    coords = decodePolyline(polylineStr);
+  } else if (latlngStream?.length > 1) {
+    // latlng stream: [[lat,lng], ...] — subsample om performant te blijven
+    const step = Math.max(1, Math.floor(latlngStream.length / 500));
+    coords = latlngStream.filter((_, i) => i % step === 0);
+  }
   if (coords.length < 2) return;
+
+  // Vernietig oude kaart veilig (DOM kan al vervangen zijn)
+  if (_adMap) { try { _adMap.remove(); } catch(e) {} _adMap = null; }
 
   await loadLeaflet();
   if (!window.L) return;
 
-  if (_adMap) { _adMap.remove(); _adMap = null; }
+  // Controleer of het element nog bestaat (panel kan gesloten zijn tijdens laden)
+  const el = document.getElementById('ad-map');
+  if (!el) return;
 
   const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
   const tile   = isDark
     ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
     : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 
-  const map = L.map(mapEl, { zoomControl: false, attributionControl: false, scrollWheelZoom: false });
-  L.tileLayer(tile, { maxZoom: 19 }).addTo(map);
+  try {
+    const map = L.map(el, { zoomControl: false, attributionControl: false, scrollWheelZoom: false });
+    L.tileLayer(tile, { maxZoom: 19 }).addTo(map);
 
-  const routeColor = { Run:'#22c55e', Ride:'#f59e0b', Swim:'#3b82f6' }[sportType] || '#22c55e';
-  const route = L.polyline(coords, { color: routeColor, weight: 4, opacity: .9 }).addTo(map);
-  map.fitBounds(route.getBounds(), { padding: [20, 20] });
+    const routeColor = { Run:'#22c55e', Ride:'#f59e0b', Swim:'#3b82f6' }[sportType] || '#22c55e';
+    const route = L.polyline(coords, { color: routeColor, weight: 4, opacity: .9 }).addTo(map);
+    map.fitBounds(route.getBounds(), { padding: [20, 20] });
 
-  // Start (groen) en finish (rood) stip
-  L.circleMarker(coords[0],                { radius:7, fillColor:'#22c55e', color:'#fff', weight:2, fillOpacity:1 }).addTo(map);
-  L.circleMarker(coords[coords.length - 1], { radius:7, fillColor:'#ef4444', color:'#fff', weight:2, fillOpacity:1 }).addTo(map);
+    // Start (groen) en finish (rood) stip
+    L.circleMarker(coords[0],                 { radius:7, fillColor:'#22c55e', color:'#fff', weight:2, fillOpacity:1 }).addTo(map);
+    L.circleMarker(coords[coords.length - 1], { radius:7, fillColor:'#ef4444', color:'#fff', weight:2, fillOpacity:1 }).addTo(map);
 
-  _adMap = map;
+    _adMap = map;
+    // invalidateSize zodat Leaflet de juiste container-afmetingen gebruikt
+    // na de slide-in animatie van het paneel
+    setTimeout(() => { if (_adMap) _adMap.invalidateSize(); }, 350);
+  } catch(e) {
+    console.warn('[TriCoach] Map init fout:', e);
+  }
 }
 
 async function openActivityDetail(activityId) {
@@ -3512,9 +3530,10 @@ async function openActivityDetail(activityId) {
     </div>`;
   panel.classList.add('open');
 
-  // Destroy old charts
+  // Destroy old charts + map
   Object.values(_adCharts).forEach(c => c.destroy());
   _adCharts = {};
+  if (_adMap) { try { _adMap.remove(); } catch(e) {} _adMap = null; }
 
   try {
     if (!activityId) throw new Error('Geen activiteit-ID beschikbaar.');
@@ -3685,10 +3704,12 @@ function renderActivityDetail(act, laps, streams) {
 
   // ── MAP ───────────────────────────────────────────────────
   const polyline = act.map?.polyline || act.map?.summary_polyline || '';
+  // latlng stream als directe fallback (geen polyline nodig)
+  const latlngStream = streams.latlng?.data || null;
 
   // ── RENDER HTML ───────────────────────────────────────────
   document.getElementById('ad-body').innerHTML = `
-    ${polyline ? `
+    ${(polyline || latlngStream?.length > 1) ? `
     <div class="ad-map-section">
       <div id="ad-map"></div>
     </div>` : ''}
@@ -3831,7 +3852,8 @@ function renderActivityDetail(act, laps, streams) {
   }
 
   // ── KAART ─────────────────────────────────────────────────
-  initActivityMap(polyline, act.type);
+  // setTimeout zodat de DOM en panel-animatie zeker klaar zijn voor Leaflet
+  setTimeout(() => initActivityMap(polyline, act.type, latlngStream), 80);
 }
 
 // ── EVENTS ────────────────────────────────────────────────────
