@@ -4495,8 +4495,10 @@ function applyVacations(sessions, weekStart, vacations) {
   const DAY_OFFSET = { Ma:0, Di:1, Wo:2, Do:3, Vr:4, Za:5, Zo:6 };
   return sessions.map(s => {
     const offset = DAY_OFFSET[s.day] ?? 0;
-    const d = new Date(weekStart.getTime() + offset * 86400000);
-    const dateStr = d.toISOString().slice(0, 10);
+    // Gebruik lokale datum-componenten om timezone-offset te vermijden
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + offset);
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const inVac = vacations.some(v => dateStr >= v.start && dateStr <= v.end);
     if (inVac && s.type !== 'rest') {
       return { day: s.day, type: 'rest', name: 'Vakantie', meta: '', desc: '🌴 Geniet van je vakantie' };
