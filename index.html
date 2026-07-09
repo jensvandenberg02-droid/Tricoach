@@ -1895,18 +1895,23 @@ function setHeroFlagColors(country) {
       )
     `;
   } else {
-    // Donkere modus: zwart links, vlag rechts met donker overlopend van links
-    // — twee lagen gestapeld:
-    //   1. Donker overlay (dekt links volledig, vervaagt naar rechts)
-    //   2. Vlagstrepen als solide basis (zichtbaar waar overlay verdwijnt)
+    // 3 lagen gestapeld (bovenste eerst):
+    // 1. Donkere fade van links (tekst leesbaar houden)
+    // 2. Constante donkere overlay over de vlag (~55% zwart) — dempt de kleuren
+    // 3. Vlagstrepen als solide basis
     hero.style.background = `
       linear-gradient(to right,
-        #060d08 0%, #060d08 35%,
-        rgba(6,13,8,.88) 42%,
-        rgba(6,13,8,.55) 52%,
-        rgba(6,13,8,.18) 65%,
-        rgba(6,13,8,.04) 78%,
-        transparent 90%
+        #060d08 0%, #060d08 36%,
+        rgba(6,13,8,.92) 42%,
+        rgba(6,13,8,.6)  50%,
+        rgba(6,13,8,.25) 62%,
+        rgba(6,13,8,.1)  75%,
+        transparent 88%
+      ),
+      linear-gradient(to right,
+        transparent 35%,
+        rgba(0,0,0,.52) 35%,
+        rgba(0,0,0,.52) 100%
       ),
       linear-gradient(to right,
         #060d08 0%, #060d08 35%,
