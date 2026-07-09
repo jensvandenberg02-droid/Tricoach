@@ -2949,10 +2949,10 @@ function generatePlan() {
   //   HIM/marathon   → taperW=4  = 3 echte taperweken (progressief -25%/-45%/-65%)
   //   IM             → taperW=5  = 4 echte taperweken
   const TAPER_WEEKS_A = {
-    'IM':          5,   // 4 effectieve taperweken
-    'marathon':    3,   // 2 effectieve taperweken
-    'HIM':         4,   // 3 effectieve taperweken
-    'HM':          3,   // 2 effectieve taperweken
+    'IM':          4,   // 3 effectieve taperweken (4 totaal incl. raceweek)
+    'marathon':    3,   // 2 effectieve taperweken (3 totaal incl. raceweek)
+    'HIM':         3,   // 2 effectieve taperweken (3 totaal incl. raceweek)
+    'HM':          3,   // 2 effectieve taperweken (3 totaal incl. raceweek)
     'olympic-tri': 2,   // 1 effectieve taperweek
     'duathlon':    2,   // 1 effectieve taperweek
     'sprint-tri':  2,   // 1 effectieve taperweek
@@ -2991,7 +2991,7 @@ function generatePlan() {
   // Olympic/duathlon: ~5 dagen → 1 week
   // HIM/HM/marathon: 7-14 dagen → 1-2 weken
   // IM: 2-3 weken
-  const REC_WEEKS     = { 'IM': 3, 'marathon': 2, 'HIM': 2, 'HM': 1, 'olympic-tri': 1, 'duathlon': 1, 'sprint-tri': 0, '5K': 0, '10K': 0 };
+  const REC_WEEKS     = { 'IM': 3, 'marathon': 2, 'HIM': 2, 'HM': 1, 'olympic-tri': 1, 'duathlon': 1, 'sprint-tri': 1, '5K': 0, '10K': 0 };
 
   // Zware eventtypes: B/C events van dit type krijgen ook een verlengde taper
   // (HIM, IM, marathon, HM, ultra — fysiologische belasting is onafhankelijk van prioriteit)
@@ -3031,25 +3031,25 @@ function generatePlan() {
     const buildW = BUILD_WEEKS[nextEvt.type] ?? 8;
     const recW   = REC_WEEKS[nextEvt.type]   ?? 1;
 
-    // Fase bepalen — prioriteitsvolgorde: race > taper > recovery > peak > build > base
-    // Taper staat boven recovery: als je herstel overlapt met taper voor het volgende event,
-    // wint taper — actieve taper IS ook herstel, maar met gerichte trainingsimpulsen.
+    // Fase bepalen — prioriteitsvolgorde: race > recovery > taper > peak > build > base
+    // Recovery staat boven taper: na een event wint herstel altijd.
+    // 5K/10K hebben REC_WEEKS=0 en triggeren nooit recovery.
     let phase = 'base';
     if (thisWeekEvents.some(e => e.id === nextEvt.id)) {
       // Race staat in deze week
       phase = 'race';
-    } else if (weeksToTarget <= taperW) {
-      // Taper voor het volgende event — heeft prioriteit boven recovery
-      phase = 'taper';
     } else if (EVENTS.some(e => {
       const evDate = new Date(e.date);
       const r = REC_WEEKS[e.type] ?? 0;
-      if (r === 0) return false; // sprint/5K: geen aparte herstelweek
+      if (r === 0) return false; // 5K/10K: geen aparte herstelweek
       const recEnd = new Date(evDate.getTime() + r * msPerWk);
       return weekStart > evDate && weekStart <= recEnd;
     })) {
-      // Week valt in herstelperiode na een voorbij event
+      // Week valt in herstelperiode na een voorbij event — prioriteit boven taper
       phase = 'recovery';
+    } else if (weeksToTarget <= taperW) {
+      // Taper voor het volgende event
+      phase = 'taper';
     } else if (weeksToTarget <= taperW + peakW) {
       // Peak: hoge intensiteit, specifieke voorbereiding
       phase = 'peak';
