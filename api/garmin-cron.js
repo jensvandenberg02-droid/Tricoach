@@ -39,7 +39,10 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, message: 'Geen gebruikers met Garmin account.' });
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const todayDate      = new Date();
+  const today          = todayDate.toISOString().slice(0, 10);
+  const yesterdayDate  = new Date(Date.now() - 86_400_000);
+  const yesterday      = yesterdayDate.toISOString().slice(0, 10);
   const results = [];
 
   for (const user of users) {
@@ -50,11 +53,11 @@ export default async function handler(req, res) {
       });
       await client.login();
 
-      // Haal vandaag's data op
-      const todayDate = new Date(today);
+      // Slaap ophalen voor vandaag (= gisternacht — Garmin koppelt slaap aan de ochtend)
+      // Stappen ophalen voor gisteren (complete dag — vandaag is nog niet afgerond)
       const [sleepData, stepsData] = await Promise.allSettled([
         client.getSleepData(todayDate),
-        client.getSteps(todayDate),
+        client.getSteps(yesterdayDate),
       ]);
 
       const sleep = sleepData.status === 'fulfilled' ? sleepData.value : null;
@@ -66,7 +69,7 @@ export default async function handler(req, res) {
         ? bbArray[bbArray.length - 1]?.value ?? null
         : null;
 
-      // Stappen
+      // Stappen van gisteren
       let totalSteps = null;
       if (typeof steps === 'number') {
         totalSteps = steps || null;
@@ -76,7 +79,8 @@ export default async function handler(req, res) {
         totalSteps = steps.totalSteps;
       }
 
-      const healthLog = {
+      // ── 1. Slaap/HRV/body battery → opslaan als vandaag ──────────────────────
+      const sleepLog = {
         user_id:      user.id,
         date:         today,
         vo2max:       null,
@@ -86,21 +90,45 @@ export default async function handler(req, res) {
                         : null,
         sleep_score:  sleep?.dailySleepDTO?.sleepScores?.overall?.value ?? null,
         hrv:          sleep?.avgOvernightHrv ?? null,
-        steps:        totalSteps,
+        steps:        null, // stappen komen van gisteren, niet vandaag
         notes:        'Automatisch gesynchroniseerd via Garmin',
       };
 
-      // Upsert — overschrijft bestaande entry voor vandaag
-      const { error: upsertErr } = await supabase
+      const { error: sleepErr } = await supabase
         .from('health_logs')
-        .upsert(healthLog, { onConflict: 'user_id,date' });
+        .upsert(sleepLog, { onConflict: 'user_id,date' });
 
-      if (upsertErr) {
-        results.push({ user: user.display_name, status: 'error', error: upsertErr.message });
-      } else {
-        results.push({ user: user.display_name, status: 'ok', date: today });
-        console.log(`✅ Garmin sync OK: ${user.display_name} (${today})`);
+      if (sleepErr) {
+        results.push({ user: user.display_name, status: 'error', error: sleepErr.message });
+        continue;
       }
+
+      // ── 2. Stappen van gisteren → apart upserten zodat gisteren's slaapdata intact blijft ──
+      if (totalSteps !== null) {
+        const { data: existing } = await supabase
+          .from('health_logs')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('date', yesterday)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase.from('health_logs')
+            .update({ steps: totalSteps })
+            .eq('user_id', user.id)
+            .eq('date', yesterday);
+        } else {
+          await supabase.from('health_logs').insert({
+            user_id: user.id,
+            date:    yesterday,
+            steps:   totalSteps,
+            notes:   'Garmin stappen (automatisch)',
+          });
+        }
+      }
+
+      results.push({ user: user.display_name, status: 'ok', date: today, stepsDate: yesterday });
+      console.log(`✅ Garmin sync OK: ${user.display_name} — slaap ${today}, stappen ${yesterday}`);
     } catch (e) {
       console.error(`❌ Garmin sync mislukt voor ${user.display_name}:`, e.message);
       results.push({ user: user.display_name, status: 'error', error: e.message });
