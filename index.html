@@ -1118,6 +1118,7 @@ a { color: var(--accent); text-decoration: none; }
             <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#06b6d4;display:inline-block"></span>Zwem</span>
             <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#3b82f6;display:inline-block"></span>Fiets</span>
             <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#22c55e;display:inline-block"></span>Loop</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#a855f7;display:inline-block"></span>Overig</span>
           </div>
         </div>
         <div style="height:160px;position:relative"><canvas id="chart-volume"></canvas></div>
@@ -3302,11 +3303,12 @@ function renderVolumeChart() {
     const diff = (day === 0 ? -6 : 1 - day);
     const mon = new Date(d); mon.setDate(d.getDate() + diff);
     const key = mon.toISOString().slice(0, 10);
-    if (!weekMap[key]) weekMap[key] = { swim: 0, bike: 0, run: 0 };
+    if (!weekMap[key]) weekMap[key] = { swim: 0, bike: 0, run: 0, other: 0 };
     const hrs = a.duration / 3600;
-    if (a.type === 'Swim') weekMap[key].swim += hrs;
-    else if (a.type === 'Ride') weekMap[key].bike += hrs;
-    else if (a.type === 'Run')  weekMap[key].run  += hrs;
+    if (a.type === 'Swim')      weekMap[key].swim  += hrs;
+    else if (a.type === 'Ride' || a.type === 'VirtualRide') weekMap[key].bike += hrs;
+    else if (a.type === 'Run' || a.type === 'Walk')         weekMap[key].run  += hrs;
+    else                        weekMap[key].other += hrs;
   });
 
   // Last 12 weeks sorted
@@ -3329,9 +3331,10 @@ function renderVolumeChart() {
     data: {
       labels,
       datasets: [
-        { label: 'Zwem', data: keys.map(k => +weekMap[k].swim.toFixed(2)), backgroundColor: '#06b6d4', borderRadius: 3, stack: 'vol' },
-        { label: 'Fiets', data: keys.map(k => +weekMap[k].bike.toFixed(2)), backgroundColor: '#3b82f6', borderRadius: 3, stack: 'vol' },
-        { label: 'Loop',  data: keys.map(k => +weekMap[k].run.toFixed(2)),  backgroundColor: '#22c55e', borderRadius: 3, stack: 'vol' },
+        { label: 'Zwem',   data: keys.map(k => +weekMap[k].swim.toFixed(2)),  backgroundColor: '#06b6d4', borderRadius: 3, stack: 'vol' },
+        { label: 'Fiets',  data: keys.map(k => +weekMap[k].bike.toFixed(2)),  backgroundColor: '#3b82f6', borderRadius: 3, stack: 'vol' },
+        { label: 'Loop',   data: keys.map(k => +weekMap[k].run.toFixed(2)),   backgroundColor: '#22c55e', borderRadius: 3, stack: 'vol' },
+        { label: 'Overig', data: keys.map(k => +(weekMap[k].other||0).toFixed(2)), backgroundColor: '#a855f7', borderRadius: 3, stack: 'vol' },
       ]
     },
     options: {
