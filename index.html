@@ -518,6 +518,15 @@ a { color: var(--accent); text-decoration: none; }
   display: inline-flex; align-items: center; gap: 5px; font-size: 13px;
   color: #fc4c02; text-decoration: none; margin-top: 6px; font-weight: 600;
 }
+.ad-map-section {
+  border-radius: var(--r); overflow: hidden;
+  border: 1px solid var(--border);
+}
+#ad-map {
+  height: 260px; width: 100%;
+}
+/* Leaflet donker thema override */
+[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.85) saturate(.9); }
 .ad-stats-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
 }
@@ -3431,6 +3440,68 @@ function renderVolumeChart() {
 
 // ── ACTIVITY DETAIL ────────────────────────────────────────
 let _adCharts = {};
+let _adMap    = null;
+
+// Leaflet lazy-loader
+function loadLeaflet() {
+  return new Promise(resolve => {
+    if (window.L) { resolve(); return; }
+    const css = document.createElement('link');
+    css.rel   = 'stylesheet';
+    css.href  = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+    document.head.appendChild(css);
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    s.onload = resolve;
+    document.head.appendChild(s);
+  });
+}
+
+// Google Encoded Polyline decoder
+function decodePolyline(enc) {
+  let i = 0, lat = 0, lng = 0;
+  const out = [];
+  while (i < enc.length) {
+    let b, sh = 0, res = 0;
+    do { b = enc.charCodeAt(i++) - 63; res |= (b & 0x1f) << sh; sh += 5; } while (b >= 0x20);
+    lat += (res & 1) ? ~(res >> 1) : (res >> 1);
+    sh = res = 0;
+    do { b = enc.charCodeAt(i++) - 63; res |= (b & 0x1f) << sh; sh += 5; } while (b >= 0x20);
+    lng += (res & 1) ? ~(res >> 1) : (res >> 1);
+    out.push([lat / 1e5, lng / 1e5]);
+  }
+  return out;
+}
+
+async function initActivityMap(polylineStr, sportType) {
+  const mapEl = document.getElementById('ad-map');
+  if (!mapEl || !polylineStr) return;
+  const coords = decodePolyline(polylineStr);
+  if (coords.length < 2) return;
+
+  await loadLeaflet();
+  if (!window.L) return;
+
+  if (_adMap) { _adMap.remove(); _adMap = null; }
+
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  const tile   = isDark
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+
+  const map = L.map(mapEl, { zoomControl: false, attributionControl: false, scrollWheelZoom: false });
+  L.tileLayer(tile, { maxZoom: 19 }).addTo(map);
+
+  const routeColor = { Run:'#22c55e', Ride:'#f59e0b', Swim:'#3b82f6' }[sportType] || '#22c55e';
+  const route = L.polyline(coords, { color: routeColor, weight: 4, opacity: .9 }).addTo(map);
+  map.fitBounds(route.getBounds(), { padding: [20, 20] });
+
+  // Start (groen) en finish (rood) stip
+  L.circleMarker(coords[0],                { radius:7, fillColor:'#22c55e', color:'#fff', weight:2, fillOpacity:1 }).addTo(map);
+  L.circleMarker(coords[coords.length - 1], { radius:7, fillColor:'#ef4444', color:'#fff', weight:2, fillOpacity:1 }).addTo(map);
+
+  _adMap = map;
+}
 
 async function openActivityDetail(activityId) {
   const panel = document.getElementById('activity-detail');
@@ -3467,6 +3538,7 @@ function closeActivityDetail() {
   document.getElementById('activity-detail').classList.remove('open');
   Object.values(_adCharts).forEach(c => c.destroy());
   _adCharts = {};
+  if (_adMap) { _adMap.remove(); _adMap = null; }
 }
 
 function renderActivityDetail(act, laps, streams) {
@@ -3611,8 +3683,15 @@ function renderActivityDetail(act, laps, streams) {
       </div>`;
   }
 
+  // ── MAP ───────────────────────────────────────────────────
+  const polyline = act.map?.polyline || act.map?.summary_polyline || '';
+
   // ── RENDER HTML ───────────────────────────────────────────
   document.getElementById('ad-body').innerHTML = `
+    ${polyline ? `
+    <div class="ad-map-section">
+      <div id="ad-map"></div>
+    </div>` : ''}
     <div class="ad-header-info">
       <div class="ad-sport-icon ${sport.cls}">${sport.icon}</div>
       <div>
@@ -3750,6 +3829,9 @@ function renderActivityDetail(act, laps, streams) {
       },
     });
   }
+
+  // ── KAART ─────────────────────────────────────────────────
+  initActivityMap(polyline, act.type);
 }
 
 // ── EVENTS ────────────────────────────────────────────────────
