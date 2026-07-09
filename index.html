@@ -525,8 +525,6 @@ a { color: var(--accent); text-decoration: none; }
 #ad-map {
   height: 260px; width: 100%;
 }
-/* Leaflet donker thema override */
-[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.85) saturate(.9); }
 .ad-stats-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
 }
@@ -3442,23 +3440,9 @@ function renderVolumeChart() {
 let _adCharts = {};
 let _adMap    = null;
 
-// Leaflet lazy-loader
-function loadLeaflet() {
-  return new Promise(resolve => {
-    if (window.L) { resolve(); return; }
-    const css = document.createElement('link');
-    css.rel   = 'stylesheet';
-    css.href  = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
-    document.head.appendChild(css);
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
-    s.onload = resolve;
-    document.head.appendChild(s);
-  });
-}
-
 // Google Encoded Polyline decoder
 function decodePolyline(enc) {
+  if (!enc) return [];
   let i = 0, lat = 0, lng = 0;
   const out = [];
   while (i < enc.length) {
@@ -3473,80 +3457,125 @@ function decodePolyline(enc) {
   return out;
 }
 
+// Canvas-gebaseerde routetekening — geen externe library nodig
+function drawRouteCanvas(coords, sportType) {
+  const canvas = document.getElementById('ad-map-canvas');
+  if (!canvas || coords.length < 2) return;
+
+  const dpr  = window.devicePixelRatio || 1;
+  const rect  = canvas.getBoundingClientRect();
+  canvas.width  = rect.width  * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx  = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = rect.height;
+
+  // Subsample grote routes
+  const step = Math.max(1, Math.floor(coords.length / 800));
+  const pts   = coords.filter((_, i) => i % step === 0 || i === coords.length - 1);
+
+  // Bounding box
+  const lats = pts.map(c => c[0]), lngs = pts.map(c => c[1]);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const pad = 28;
+  const ranLat = maxLat - minLat || 0.001, ranLng = maxLng - minLng || 0.001;
+
+  // Houd aspectratio van de route
+  const scaleX = (W - pad*2) / ranLng;
+  const scaleY = (H - pad*2) / ranLat;
+  const scale  = Math.min(scaleX, scaleY);
+  const offX   = (W - ranLng * scale) / 2;
+  const offY   = (H - ranLat * scale) / 2;
+
+  const toX = lng => offX + (lng - minLng) * scale;
+  const toY = lat => H - offY - (lat - minLat) * scale;
+
+  // Achtergrond
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  ctx.fillStyle = isDark ? '#0d1117' : '#f1f5f9';
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtiele grid-achtergrond
+  ctx.strokeStyle = isDark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.06)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  // Route-schaduw
+  ctx.shadowColor = isDark ? 'rgba(0,0,0,.6)' : 'rgba(0,0,0,.15)';
+  ctx.shadowBlur  = 6;
+
+  // Route-lijn
+  const routeColor = { Run:'#22c55e', Ride:'#f59e0b', Swim:'#3b82f6' }[sportType] || '#22c55e';
+  ctx.beginPath();
+  pts.forEach((c, i) => {
+    const x = toX(c[1]), y = toY(c[0]);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = routeColor;
+  ctx.lineWidth   = 2.5;
+  ctx.lineJoin    = 'round';
+  ctx.lineCap     = 'round';
+  ctx.stroke();
+  ctx.shadowBlur  = 0;
+
+  // Startpunt (groen)
+  const sx = toX(pts[0][1]), sy = toY(pts[0][0]);
+  ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI*2);
+  ctx.fillStyle = '#22c55e'; ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Eindpunt (rood)
+  const ex = toX(pts[pts.length-1][1]), ey = toY(pts[pts.length-1][0]);
+  ctx.beginPath(); ctx.arc(ex, ey, 6, 0, Math.PI*2);
+  ctx.fillStyle = '#ef4444'; ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+}
+
 async function initActivityMap(polylineStr, sportType, latlngStream, activityId) {
-  // Vernietig oude kaart veilig (DOM kan al vervangen zijn)
-  if (_adMap) { try { _adMap.remove(); } catch(e) {} _adMap = null; }
-
-  await loadLeaflet();
-  if (!window.L) return;
-
+  if (_adMap) { _adMap = null; }
   const el = document.getElementById('ad-map');
   if (!el) return;
 
-  // ── Coördinaten bepalen (drie bronnen in volgorde van voorkeur) ───────────
+  // ── Coördinaten ophalen ───────────────────────────────────────────────────
   let coords = [];
 
-  // 1. Encoded polyline (snelste, al in activiteitsresponse)
-  if (polylineStr) {
-    coords = decodePolyline(polylineStr);
-  }
+  if (polylineStr) coords = decodePolyline(polylineStr);
 
-  // 2. Raw latlng stream (als meegestuurd)
   if (coords.length < 2 && latlngStream?.length > 1) {
-    const step = Math.max(1, Math.floor(latlngStream.length / 500));
-    coords = latlngStream.filter((_, i) => i % step === 0);
+    coords = latlngStream;
   }
 
-  // 3. Aparte streams-aanroep als fallback
-  if (coords.length < 2 && activityId && ACCESS_TOKEN) {
+  // Fallback: aparte aanroep (o.a. als streams leeg waren)
+  if (coords.length < 2 && activityId && typeof ACCESS_TOKEN !== 'undefined' && ACCESS_TOKEN) {
     try {
-      const r = await fetch(
-        `/api/strava-activity?id=${activityId}`,
-        { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } }
-      );
+      const r = await fetch(`/api/strava-activity?id=${activityId}`,
+        { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } });
       if (r.ok) {
         const d = await r.json();
         const pl = d.activity?.map?.polyline || d.activity?.map?.summary_polyline || '';
         if (pl) coords = decodePolyline(pl);
         if (coords.length < 2 && d.streams?.latlng?.data?.length > 1) {
-          const raw = d.streams.latlng.data;
-          const step = Math.max(1, Math.floor(raw.length / 500));
-          coords = raw.filter((_, i) => i % step === 0);
+          coords = d.streams.latlng.data;
         }
       }
-    } catch(e) { /* stille fallback */ }
+    } catch(e) { /* stil falen */ }
   }
 
-  // Geen GPS beschikbaar
+  // Canvas aanmaken in het map-element
+  el.innerHTML = '';
   if (coords.length < 2) {
-    el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--t3);font-size:13px">Geen GPS-data beschikbaar</div>`;
+    el.style.cssText = 'display:flex;align-items:center;justify-content:center;';
+    el.innerHTML = `<span style="color:var(--t3);font-size:13px">Geen GPS-data beschikbaar</span>`;
     return;
   }
 
-  // ── Kaart renderen ────────────────────────────────────────────────────────
-  el.innerHTML = ''; // verwijder "laden…" tekst
-  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-  const tile   = isDark
-    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-
-  try {
-    const map = L.map(el, { zoomControl: false, attributionControl: false, scrollWheelZoom: false });
-    L.tileLayer(tile, { maxZoom: 19 }).addTo(map);
-
-    const routeColor = { Run:'#22c55e', Ride:'#f59e0b', Swim:'#3b82f6' }[sportType] || '#22c55e';
-    const route = L.polyline(coords, { color: routeColor, weight: 4, opacity: .9 }).addTo(map);
-    map.fitBounds(route.getBounds(), { padding: [20, 20] });
-
-    L.circleMarker(coords[0],                 { radius:7, fillColor:'#22c55e', color:'#fff', weight:2, fillOpacity:1 }).addTo(map);
-    L.circleMarker(coords[coords.length - 1], { radius:7, fillColor:'#ef4444', color:'#fff', weight:2, fillOpacity:1 }).addTo(map);
-
-    _adMap = map;
-    setTimeout(() => { if (_adMap) _adMap.invalidateSize(); }, 350);
-  } catch(e) {
-    console.warn('[TriCoach] Map init fout:', e);
-    el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--t3);font-size:13px">Kaart kon niet geladen worden</div>`;
-  }
+  const canvas = document.createElement('canvas');
+  canvas.id     = 'ad-map-canvas';
+  canvas.style.cssText = 'width:100%;height:100%;display:block;';
+  el.appendChild(canvas);
+  drawRouteCanvas(coords, sportType);
 }
 
 async function openActivityDetail(activityId) {
