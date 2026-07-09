@@ -3063,7 +3063,7 @@ function generatePlan() {
 
     // Fase bepalen — prioriteitsvolgorde: vacation > race > recovery > taper > peak > build > base
     // Vakantie heeft absolute prioriteit — geen training in die weken.
-    const weekEnd = new Date(weekStart.getTime() + msPerWk);
+    // weekEnd is al gedeclareerd hierboven (thisWeekEvents filter) — niet opnieuw declareren.
     const inVacation = (VACATIONS || []).some(v => {
       const vs = new Date(v.start), ve = new Date(v.end + 'T23:59:59');
       return weekStart < ve && weekEnd > vs; // week overlapt met vakantie
@@ -4495,6 +4495,12 @@ async function saveAvailability() {
 }
 
 // ── VAKANTIEPERIODES ───────────────────────────────────────────
+function fmtVacDate(iso) {
+  if (!iso) return '?';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
 function renderVacationList() {
   const el = document.getElementById('vacation-list');
   if (!el) return;
@@ -4507,7 +4513,7 @@ function renderVacationList() {
       <span style="font-size:18px">🌴</span>
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:14px">${v.label || 'Vakantie'}</div>
-        <div style="font-size:12px;color:var(--t2)">${formatDate(v.start)} → ${formatDate(v.end)}</div>
+        <div style="font-size:12px;color:var(--t2)">${fmtVacDate(v.start)} → ${fmtVacDate(v.end)}</div>
       </div>
       <button onclick="deleteVacation('${v.id}')" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;padding:4px;border-radius:4px" title="Verwijder">✕</button>
     </div>
