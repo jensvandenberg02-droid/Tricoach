@@ -1827,43 +1827,31 @@ const COUNTRY_FLAGS = {
   'polen':         '🇵🇱', 'finland':      '🇫🇮',
 };
 
-/// Flag colors: [c1, c2, c3] + direction 'h' (horizontal) or 'v' (vertical)
-// 'h' = strepen lopen van boven naar beneden (bv. Nederland, Duitsland)
-// 'v' = strepen lopen van links naar rechts (bv. België, Frankrijk)
-const COUNTRY_COLORS = {
-  'belgie':               { c: ['#000000','#FFE000','#EF3340'], d: 'v' },
-  'belgië':               { c: ['#000000','#FFE000','#EF3340'], d: 'v' },
-  'nederland':            { c: ['#AE1C28','#FFFFFF','#21468B'], d: 'h' },
-  'duitsland':            { c: ['#000000','#DD0000','#FFCE00'], d: 'h' },
-  'frankrijk':            { c: ['#002395','#FFFFFF','#ED2939'], d: 'v' },
-  'spanje':               { c: ['#AA151B','#F1BF00','#AA151B'], d: 'h' },
-  'italie':               { c: ['#009246','#FFFFFF','#CE2B37'], d: 'v' },
-  'italië':               { c: ['#009246','#FFFFFF','#CE2B37'], d: 'v' },
-  'portugal':             { c: ['#006600','#FF0000','#FFD700'], d: 'v' },
-  'noorwegen':            { c: ['#EF2B2D','#FFFFFF','#002868'], d: 'h' },
-  'zweden':               { c: ['#006AA7','#FECC02','#006AA7'], d: 'h' },
-  'denemarken':           { c: ['#C60C30','#FFFFFF','#C60C30'], d: 'h' },
-  'zwitserland':          { c: ['#FF0000','#FFFFFF','#FF0000'], d: 'h' },
-  'oostenrijk':           { c: ['#ED2939','#FFFFFF','#ED2939'], d: 'h' },
-  'uk':                   { c: ['#012169','#FFFFFF','#C8102E'], d: 'v' },
-  'verenigd koninkrijk':  { c: ['#012169','#FFFFFF','#C8102E'], d: 'v' },
-  'usa':                  { c: ['#B22234','#FFFFFF','#3C3B6E'], d: 'h' },
-  'verenigde staten':     { c: ['#B22234','#FFFFFF','#3C3B6E'], d: 'h' },
-  'hawaii':               { c: ['#B22234','#FFFFFF','#3C3B6E'], d: 'h' },
-  'australie':            { c: ['#00008B','#FFFFFF','#FF0000'], d: 'h' },
-  'australië':            { c: ['#00008B','#FFFFFF','#FF0000'], d: 'h' },
-  'canada':               { c: ['#FF0000','#FFFFFF','#FF0000'], d: 'v' },
-  'japan':                { c: ['#FFFFFF','#BC002D','#FFFFFF'], d: 'v' },
-  'mexico':               { c: ['#006847','#FFFFFF','#CE1126'], d: 'v' },
-  'brazilie':             { c: ['#009C3B','#F7D000','#003087'], d: 'v' },
-  'brazilië':             { c: ['#009C3B','#F7D000','#003087'], d: 'v' },
-  'china':                { c: ['#DE2910','#DE2910','#FECC00'], d: 'h' },
-  'kroatie':              { c: ['#FF0000','#FFFFFF','#0000FF'], d: 'h' },
-  'kroatië':              { c: ['#FF0000','#FFFFFF','#0000FF'], d: 'h' },
-  'griekenland':          { c: ['#0D5EAF','#FFFFFF','#0D5EAF'], d: 'h' },
-  'hongarije':            { c: ['#CE2939','#FFFFFF','#477050'], d: 'h' },
-  'polen':                { c: ['#FFFFFF','#DC143C','#FFFFFF'], d: 'h' },
-  'finland':              { c: ['#FFFFFF','#003580','#FFFFFF'], d: 'h' },
+/// ISO 2-letter codes → echte vlagafbeeldingen via flagcdn.com
+const COUNTRY_ISO = {
+  'belgie':'be',     'belgië':'be',
+  'nederland':'nl',  'duitsland':'de',
+  'frankrijk':'fr',  'spanje':'es',
+  'italie':'it',     'italië':'it',
+  'portugal':'pt',   'noorwegen':'no',
+  'zweden':'se',     'denemarken':'dk',
+  'zwitserland':'ch','oostenrijk':'at',
+  'uk':'gb',         'verenigd koninkrijk':'gb',
+  'usa':'us',        'verenigde staten':'us',  'hawaii':'us',
+  'australie':'au',  'australië':'au',
+  'canada':'ca',     'japan':'jp',
+  'mexico':'mx',     'brazilie':'br',  'brazilië':'br',
+  'china':'cn',      'kroatie':'hr',   'kroatië':'hr',
+  'griekenland':'gr','tsjechie':'cz',  'tsjechië':'cz',
+  'hongarije':'hu',  'poland':'pl',    'polen':'pl',
+  'finland':'fi',    'south africa':'za',
+  'ierland':'ie',    'luxemburg':'lu',
+  'slovenie':'si',   'slovenië':'si',
+  'slovakije':'sk',  'roemenië':'ro',  'roemenie':'ro',
+  'bulgarije':'bg',  'servie':'rs',    'servië':'rs',
+  'turkije':'tr',    'israel':'il',    'marokko':'ma',
+  'egypte':'eg',     'kenia':'ke',     'nieuw-zeeland':'nz',
+  'nieuw zeeland':'nz',
 };
 
 function getFlag(country) {
@@ -1876,53 +1864,37 @@ function setHeroFlagColors(country) {
   const hero = document.getElementById('hero');
   if (!hero) return;
   const k = (country || '').toLowerCase().trim();
-  const entry = COUNTRY_COLORS[k];
-  if (!entry) { hero.style.background = ''; return; }
+  const iso = COUNTRY_ISO[k];
+  if (!iso) { hero.style.background = ''; return; }
 
-  const [c1, c2, c3] = entry.c;
-  const horizontal = entry.d === 'h'; // true = strepen lopen top→bottom
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const flagUrl = `url(https://flagcdn.com/w640/${iso}.png)`;
 
   if (isLight) {
-    const bg = '#edf6f0';
-    const fade = `linear-gradient(to right,
-      ${bg} 0%, ${bg} 35%,
-      rgba(237,246,240,.85) 42%, rgba(237,246,240,.3) 55%,
-      rgba(237,246,240,.05) 68%, transparent 80%
-    )`;
-    const flag = horizontal
-      ? `linear-gradient(to bottom, ${c1}bb 0%, ${c1}bb 33%, ${c2}bb 33%, ${c2}bb 66%, ${c3}bb 66%, ${c3}bb 100%)`
-      : `linear-gradient(to right, ${bg} 0%, ${bg} 35%, ${c1}bb 35%, ${c1}bb 52%, ${c2}bb 52%, ${c2}bb 70%, ${c3}bb 70%, ${c3}bb 100%)`;
-    const leftPanel = horizontal
-      ? `linear-gradient(to right, ${bg} 0%, ${bg} 35%, transparent 35%)`
-      : '';
-    hero.style.background = [fade, leftPanel, flag].filter(Boolean).join(',');
+    // Licht thema: wit paneel links, echte vlag rechts met lichte fade ertussen
+    hero.style.background = `
+      linear-gradient(to right,
+        #edf6f0 0%, #edf6f0 35%,
+        rgba(237,246,240,.92) 42%,
+        rgba(237,246,240,.55) 54%,
+        rgba(237,246,240,.12) 68%,
+        transparent 82%
+      ) left / 100% 100% no-repeat,
+      ${flagUrl} right center / 65% 100% no-repeat
+    `;
   } else {
-    // Donkere modus — 4 lagen (bovenste eerst):
-    // 1. Donkere fade links → rechts (leesbaarheid tekst)
-    // 2. Donker paneel links (alleen bij horizontale vlag — bij verticale zit dit in laag 4)
-    // 3. Constante ~52% zwarte overlay over rechterhelft (dempt vlagkleuren)
-    // 4. Vlagpatroon: horizontaal (top→bottom) of verticaal (left→right)
-    const darkFade = `linear-gradient(to right,
-      #060d08 0%, #060d08 36%,
-      rgba(6,13,8,.92) 42%,
-      rgba(6,13,8,.6)  50%,
-      rgba(6,13,8,.25) 62%,
-      rgba(6,13,8,.1)  75%,
-      transparent 88%
-    )`;
-    const dimOverlay = `linear-gradient(to right,
-      transparent 35%,
-      rgba(0,0,0,.35) 35%,
-      rgba(0,0,0,.35) 100%
-    )`;
-    const leftPanel = horizontal
-      ? `linear-gradient(to right, #060d08 0%, #060d08 35%, transparent 35%)`
-      : '';
-    const flagGrad = horizontal
-      ? `linear-gradient(to bottom, ${c1} 0%, ${c1} 33%, ${c2} 33%, ${c2} 66%, ${c3} 66%, ${c3} 100%)`
-      : `linear-gradient(to right, #060d08 0%, #060d08 35%, ${c1} 35%, ${c1} 52%, ${c2} 52%, ${c2} 70%, ${c3} 70%, ${c3} 100%)`;
-    hero.style.background = [darkFade, leftPanel, dimOverlay, flagGrad].filter(Boolean).join(',');
+    // Donker thema: zwart paneel links, echte vlag rechts met donkere fade ertussen
+    hero.style.background = `
+      linear-gradient(to right,
+        #060d08 0%, #060d08 35%,
+        rgba(6,13,8,.92) 42%,
+        rgba(6,13,8,.60) 50%,
+        rgba(6,13,8,.18) 65%,
+        rgba(6,13,8,.04) 78%,
+        transparent 90%
+      ) left / 100% 100% no-repeat,
+      ${flagUrl} right center / 65% 100% no-repeat
+    `;
   }
 }
 
