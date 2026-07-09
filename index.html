@@ -358,6 +358,8 @@ a { color: var(--accent); text-decoration: none; }
 .week-phase.phase-taper    { background:rgba(248,113,113,.12); color:#f87171; }
 .week-phase.phase-race     { background:rgba(34,197,94,.2);    color:var(--accent); }
 .week-phase.phase-recovery { background:rgba(167,139,250,.12); color:var(--purple); }
+.week-phase.phase-vacation { background:rgba(251,146,60,.12);  color:#fb923c; }
+.week-card.phase-vacation .week-header::before { background:#fb923c; }
 /* Phase accent color on the week-card itself (for the ::before line) */
 .week-card.phase-base  .week-header::before { background:var(--blue); }
 .week-card.phase-build .week-header::before { background:var(--green); }
@@ -1319,6 +1321,18 @@ a { color: var(--accent); text-decoration: none; }
       </div>
 
       <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Vakantieperiodes</div>
+        <p style="font-size:13px;color:var(--t2);margin-bottom:14px">Weken die volledig in een vakantieperiode vallen krijgen geen trainingssessies in het plan.</p>
+        <div id="vacation-list" style="margin-bottom:12px"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 2fr auto;gap:8px;align-items:end">
+          <div class="form-group" style="margin:0"><label>Van</label><input class="form-control" id="vac-start" type="date"></div>
+          <div class="form-group" style="margin:0"><label>Tot</label><input class="form-control" id="vac-end" type="date"></div>
+          <div class="form-group" style="margin:0"><label>Label (optioneel)</label><input class="form-control" id="vac-label" type="text" placeholder="Zomervakantie"></div>
+          <button class="btn btn-primary" style="margin:0" onclick="addVacation()">Toevoegen</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
         <div class="card-title">Garmin Connect</div>
         <p style="font-size:13px;color:var(--t2);margin-bottom:14px">Vul je Garmin inloggegevens in om workouts te pushen. Deze worden veilig opgeslagen.</p>
         <div class="form-group"><label>Garmin e-mail</label><input class="form-control" id="p-garmin-email" type="email" placeholder="jou@email.com"></div>
@@ -1682,6 +1696,7 @@ const ICONS = {
   peak:     `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>`,
   taper:    `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23,18 13,8 8,13 1,6"/></svg>`,
   recovery: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`,
+  vacation: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
 };
 
 // Helper: inline icon span
@@ -1777,12 +1792,14 @@ async function loadAll() {
 
   // Laad beschikbaarheid
   AVAILABILITY = PROFILE.week_availability || {};
+  VACATIONS    = PROFILE.vacations || [];
 
   renderProfileTab();
   renderEventsTab();
   renderInjuriesTab();
   renderHealthTab();
   renderAvailabilityGrid();
+  renderVacationList();
   renderActivities();
   updateAvatar();
 }
@@ -1979,6 +1996,19 @@ function makeSessions(z, phase, type, weekNum, evt) {
   const runCooldown  = { kind:'cooldown', secs:600, desc:'10 min afkoelen Z1' };
   const bikeWarmup   = { kind:'warmup',   secs:600, desc:'10 min opwarmen Z1' };
   const bikeCooldown = { kind:'cooldown', secs:600, desc:'10 min afkoelen Z1' };
+
+  // ── VAKANTIEWEEK (geen training) ────────────────────────────────────────────
+  if (phase === 'vacation') {
+    return [
+      { day:'Ma', type:'rest', name:'Vakantie', meta:'', desc:'Geniet van je vakantie 🌴' },
+      { day:'Di', type:'rest', name:'Vakantie', meta:'', desc:'Geniet van je vakantie 🌴' },
+      { day:'Wo', type:'rest', name:'Vakantie', meta:'', desc:'Geniet van je vakantie 🌴' },
+      { day:'Do', type:'rest', name:'Vakantie', meta:'', desc:'Geniet van je vakantie 🌴' },
+      { day:'Vr', type:'rest', name:'Vakantie', meta:'', desc:'Geniet van je vakantie 🌴' },
+      { day:'Za', type:'rest', name:'Vakantie', meta:'', desc:'Geniet van je vakantie 🌴' },
+      { day:'Zo', type:'rest', name:'Vakantie', meta:'', desc:'Geniet van je vakantie 🌴' },
+    ];
+  }
 
   // ── HERSTELWEEK (geen intensiteit, laag volume) ──────────────────────────────
   if (phase === 'recovery') {
@@ -3031,11 +3061,18 @@ function generatePlan() {
     const buildW = BUILD_WEEKS[nextEvt.type] ?? 8;
     const recW   = REC_WEEKS[nextEvt.type]   ?? 1;
 
-    // Fase bepalen — prioriteitsvolgorde: race > recovery > taper > peak > build > base
-    // Recovery staat boven taper: na een event wint herstel altijd.
-    // 5K/10K hebben REC_WEEKS=0 en triggeren nooit recovery.
+    // Fase bepalen — prioriteitsvolgorde: vacation > race > recovery > taper > peak > build > base
+    // Vakantie heeft absolute prioriteit — geen training in die weken.
+    const weekEnd = new Date(weekStart.getTime() + msPerWk);
+    const inVacation = (VACATIONS || []).some(v => {
+      const vs = new Date(v.start), ve = new Date(v.end + 'T23:59:59');
+      return weekStart < ve && weekEnd > vs; // week overlapt met vakantie
+    });
+
     let phase = 'base';
-    if (thisWeekEvents.some(e => e.id === nextEvt.id)) {
+    if (inVacation) {
+      phase = 'vacation';
+    } else if (thisWeekEvents.some(e => e.id === nextEvt.id)) {
       // Race staat in deze week
       phase = 'race';
     } else if (EVENTS.some(e => {
@@ -4423,6 +4460,7 @@ const AVAIL_SPORTS = [
   { k:'rest', label:'😴 Rust' },
 ];
 let AVAILABILITY = {}; // { Ma: ['swim','run'], Di: ['bike'], ... }
+let VACATIONS    = []; // [{ id, label, start, end }]
 
 function renderAvailabilityGrid() {
   const grid = document.getElementById('avail-grid');
@@ -4454,6 +4492,55 @@ async function saveAvailability() {
   PROFILE.week_availability = AVAILABILITY;
   generateAndRender();
   toast('Beschikbaarheid opgeslagen! Plan is bijgewerkt.', 'success');
+}
+
+// ── VAKANTIEPERIODES ───────────────────────────────────────────
+function renderVacationList() {
+  const el = document.getElementById('vacation-list');
+  if (!el) return;
+  if (!VACATIONS.length) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--t3);margin:0">Geen vakantieperiodes ingepland.</p>';
+    return;
+  }
+  el.innerHTML = VACATIONS.map(v => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">
+      <span style="font-size:18px">🌴</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:14px">${v.label || 'Vakantie'}</div>
+        <div style="font-size:12px;color:var(--t2)">${formatDate(v.start)} → ${formatDate(v.end)}</div>
+      </div>
+      <button onclick="deleteVacation('${v.id}')" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;padding:4px;border-radius:4px" title="Verwijder">✕</button>
+    </div>
+  `).join('');
+}
+
+function addVacation() {
+  const start = document.getElementById('vac-start').value;
+  const end   = document.getElementById('vac-end').value;
+  const label = document.getElementById('vac-label').value.trim();
+  if (!start || !end) { toast('Vul een start- en einddatum in.', 'error'); return; }
+  if (end < start)    { toast('Einddatum moet na startdatum liggen.', 'error'); return; }
+  VACATIONS.push({ id: crypto.randomUUID(), label, start, end });
+  document.getElementById('vac-start').value = '';
+  document.getElementById('vac-end').value   = '';
+  document.getElementById('vac-label').value  = '';
+  saveVacations();
+}
+
+function deleteVacation(id) {
+  VACATIONS = VACATIONS.filter(v => v.id !== id);
+  saveVacations();
+}
+
+async function saveVacations() {
+  const { error } = await sb.from('profiles')
+    .update({ vacations: VACATIONS, updated_at: new Date().toISOString() })
+    .eq('id', USER.id);
+  if (error) { toast('Fout: ' + error.message, 'error'); return; }
+  PROFILE.vacations = VACATIONS;
+  renderVacationList();
+  generateAndRender();
+  toast('Vakantieperiodes opgeslagen! Plan is bijgewerkt.', 'success');
 }
 
 // ── SESSION SCHEDULING BASED ON AVAILABILITY ──────────────────
