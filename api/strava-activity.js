@@ -62,7 +62,7 @@ export default async function handler(req, res) {
     fetch(`https://www.strava.com/api/v3/activities/${id}/laps`, { headers: h }),
     fetch(
       `https://www.strava.com/api/v3/activities/${id}/streams` +
-      `?keys=distance,altitude,heartrate,velocity_smooth&key_by_type=true`,
+      `?keys=distance,altitude,heartrate,velocity_smooth,latlng&key_by_type=true`,
       { headers: h }
     ),
   ]);
