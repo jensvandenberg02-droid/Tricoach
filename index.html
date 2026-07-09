@@ -1874,35 +1874,46 @@ function setHeroFlagColors(country) {
   if (!hero) return;
   const k = (country || '').toLowerCase().trim();
   const cols = COUNTRY_COLORS[k];
-  if (!cols) {
-    hero.style.background = '';
-    return;
-  }
+  if (!cols) { hero.style.background = ''; return; }
+
   const [c1, c2, c3] = cols;
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+
   if (isLight) {
+    // Lichte modus: wit/licht links → vlagkleuren rechts, gedempte tinten
     hero.style.background = `
-      linear-gradient(105deg,
-        #e8f5ee 0%,
-        #edf4f0 35%,
-        ${c1}22 50%,
-        ${c2}22 63%,
-        ${c3}22 76%,
-        ${c3}10 100%
+      linear-gradient(to right,
+        #edf6f0 0%, #edf6f0 35%,
+        rgba(237,246,240,.85) 42%, rgba(237,246,240,.3) 55%,
+        rgba(237,246,240,.05) 68%, transparent 80%
       ),
-      linear-gradient(180deg, rgba(34,197,94,.07) 0%, transparent 55%)
+      linear-gradient(to right,
+        #edf6f0 0%, #edf6f0 35%,
+        ${c1}bb 35%, ${c1}bb 52%,
+        ${c2}bb 52%, ${c2}bb 70%,
+        ${c3}bb 70%, ${c3}bb 100%
+      )
     `;
   } else {
+    // Donkere modus: zwart links, vlag rechts met donker overlopend van links
+    // — twee lagen gestapeld:
+    //   1. Donker overlay (dekt links volledig, vervaagt naar rechts)
+    //   2. Vlagstrepen als solide basis (zichtbaar waar overlay verdwijnt)
     hero.style.background = `
-      linear-gradient(105deg,
-        #09111a 0%,
-        #09111a 38%,
-        ${c1}18 50%,
-        ${c2}18 63%,
-        ${c3}18 76%,
-        ${c3}08 100%
+      linear-gradient(to right,
+        #060d08 0%, #060d08 35%,
+        rgba(6,13,8,.88) 42%,
+        rgba(6,13,8,.55) 52%,
+        rgba(6,13,8,.18) 65%,
+        rgba(6,13,8,.04) 78%,
+        transparent 90%
       ),
-      linear-gradient(180deg, rgba(34,197,94,.04) 0%, transparent 50%)
+      linear-gradient(to right,
+        #060d08 0%, #060d08 35%,
+        ${c1} 35%, ${c1} 52%,
+        ${c2} 52%, ${c2} 70%,
+        ${c3} 70%, ${c3} 100%
+      )
     `;
   }
 }
