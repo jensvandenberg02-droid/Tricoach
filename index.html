@@ -3061,18 +3061,10 @@ function generatePlan() {
     const buildW = BUILD_WEEKS[nextEvt.type] ?? 8;
     const recW   = REC_WEEKS[nextEvt.type]   ?? 1;
 
-    // Fase bepalen — prioriteitsvolgorde: vacation > race > recovery > taper > peak > build > base
-    // Vakantie heeft absolute prioriteit — geen training in die weken.
-    // weekEnd is al gedeclareerd hierboven (thisWeekEvents filter) — niet opnieuw declareren.
-    const inVacation = (VACATIONS || []).some(v => {
-      const vs = new Date(v.start), ve = new Date(v.end + 'T23:59:59');
-      return weekStart < ve && weekEnd > vs; // week overlapt met vakantie
-    });
-
+    // Fase bepalen — prioriteitsvolgorde: race > recovery > taper > peak > build > base
+    // Vakantie wordt per dag toegepast via applyVacations() — niet als weekfase.
     let phase = 'base';
-    if (inVacation) {
-      phase = 'vacation';
-    } else if (thisWeekEvents.some(e => e.id === nextEvt.id)) {
+    if (thisWeekEvents.some(e => e.id === nextEvt.id)) {
       // Race staat in deze week
       phase = 'race';
     } else if (EVENTS.some(e => {
@@ -3103,6 +3095,7 @@ function generatePlan() {
     let sessions = makeSessions(weekZ, phase, nextEvt.type, w + 1, nextEvt);
     sessions = enforcePeriodization(sessions);  // ← structurele bewaker: altijd aanroepen
     sessions = applyInjuries(sessions, INJURIES, weekStart);
+    sessions = applyVacations(sessions, weekStart, VACATIONS);
     if (Object.keys(AVAILABILITY).length) {
       sessions = scheduleWithAvailability(sessions, AVAILABILITY);
     }
@@ -3151,7 +3144,7 @@ function renderPlan(plan) {
 
   const now  = new Date();
   const today = now.toISOString().slice(0, 10);
-  const phaseLabels = { base:'Base', build:'Build', peak:'Peak', taper:'Taper', race:'Race', recovery:'Herstel' };
+  const phaseLabels = { base:'Base', build:'Build', peak:'Peak', taper:'Taper', race:'Race', recovery:'Herstel', vacation:'Vakantie' };
 
   grid.innerHTML += plan.map((week, i) => {
     const wStart = week.weekStart;
@@ -4494,7 +4487,25 @@ async function saveAvailability() {
   toast('Beschikbaarheid opgeslagen! Plan is bijgewerkt.', 'success');
 }
 
-// ── VAKANTIEPERIODES ───────────────────────────────────────────
+// ── VAKANTIEDAGEN TOEPASSEN ────────────────────────────────────
+// Vervangt individuele trainingsdagen die binnen een vakantieperiode vallen door rust.
+// Werkt op dagniveau zodat weken die maar gedeeltelijk in vakantie vallen correct blijven.
+function applyVacations(sessions, weekStart, vacations) {
+  if (!vacations?.length) return sessions;
+  const DAY_OFFSET = { Ma:0, Di:1, Wo:2, Do:3, Vr:4, Za:5, Zo:6 };
+  return sessions.map(s => {
+    const offset = DAY_OFFSET[s.day] ?? 0;
+    const d = new Date(weekStart.getTime() + offset * 86400000);
+    const dateStr = d.toISOString().slice(0, 10);
+    const inVac = vacations.some(v => dateStr >= v.start && dateStr <= v.end);
+    if (inVac && s.type !== 'rest') {
+      return { day: s.day, type: 'rest', name: 'Vakantie', meta: '', desc: '🌴 Geniet van je vakantie' };
+    }
+    return s;
+  });
+}
+
+// ── VAKANTIEPERIODES BEHEER ────────────────────────────────────
 function fmtVacDate(iso) {
   if (!iso) return '?';
   const [y, m, d] = iso.split('-');
@@ -4618,7 +4629,7 @@ function renderPlanAsChecklist(plan) {
     const wEnd   = new Date(wStart.getTime() + 6 * 86400000);
     const isCurrent = today >= wStart.toISOString().slice(0,10) && today <= wEnd.toISOString().slice(0,10);
     const dateLabel  = `${wStart.getDate()} ${monthShort(wStart)} — ${wEnd.getDate()} ${monthShort(wEnd)}`;
-    const phaseLabels = { base:'Base', build:'Build', peak:'Peak', taper:'Taper', race:'Race', recovery:'Herstel' };
+    const phaseLabels = { base:'Base', build:'Build', peak:'Peak', taper:'Taper', race:'Race', recovery:'Herstel', vacation:'Vakantie' };
     const activeSessions = week.sessions.filter(s => s.type !== 'rest');
 
     const sessHtml = activeSessions.map(s => {
