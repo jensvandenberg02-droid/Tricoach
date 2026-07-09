@@ -50,29 +50,28 @@ export default async function handler(req, res) {
     });
     await client.login();
 
-    const todayDate = new Date();
-    const today = todayDate.toISOString().slice(0, 10);
+    const todayDate     = new Date();
+    const today         = todayDate.toISOString().slice(0, 10);
+    const yesterdayDate = new Date(Date.now() - 86_400_000);
+    const yesterday     = yesterdayDate.toISOString().slice(0, 10);
 
+    // Slaap voor vandaag (= gisternacht), stappen voor gisteren (complete dag)
     const [sleepData, stepsData] = await Promise.allSettled([
       client.getSleepData(todayDate),
-      client.getSteps(todayDate),
+      client.getSteps(yesterdayDate),
     ]);
 
-    const sleep  = sleepData.status  === 'fulfilled' ? sleepData.value  : null;
-    const steps  = stepsData.status  === 'fulfilled' ? stepsData.value  : null;
+    const sleep = sleepData.status === 'fulfilled' ? sleepData.value : null;
+    const steps = stepsData.status === 'fulfilled' ? stepsData.value : null;
 
     console.log('SLEEP RAW:', JSON.stringify(sleep));
-    console.log('STEPS RAW:', JSON.stringify(steps));
+    console.log('STEPS RAW (gisteren):', JSON.stringify(steps));
 
     // Slaapdata
-    const sleepSec = sleep?.dailySleepDTO?.sleepTimeSeconds
-                  ?? sleep?.sleepTimeSeconds
-                  ?? null;
-    const sleepScore = sleep?.dailySleepDTO?.sleepScores?.overall?.value
-                    ?? sleep?.averageSpO2Value
-                    ?? null;
+    const sleepSec   = sleep?.dailySleepDTO?.sleepTimeSeconds ?? sleep?.sleepTimeSeconds ?? null;
+    const sleepScore = sleep?.dailySleepDTO?.sleepScores?.overall?.value ?? sleep?.averageSpO2Value ?? null;
 
-    // Stappen
+    // Stappen van gisteren
     let totalSteps = null;
     if (typeof steps === 'number') {
       totalSteps = steps || null;
@@ -88,27 +87,50 @@ export default async function handler(req, res) {
       ? bbArray[bbArray.length - 1]?.value ?? null
       : null;
 
-    const healthLog = {
+    // ── 1. Slaap/HRV/body battery → opslaan als vandaag ─────────────────────
+    const sleepLog = {
       user_id:      user.id,
       date:         today,
-      vo2max:       null, // manueel invoeren via het formulier
+      vo2max:       null,
       body_battery: bodyBattery,
       sleep_hours:  sleepSec ? Math.round(sleepSec / 360) / 10 : null,
       sleep_score:  sleepScore,
       hrv:          sleep?.avgOvernightHrv ?? null,
-      steps:        totalSteps,
+      steps:        null, // stappen komen van gisteren
       notes:        'Automatisch gesynchroniseerd via Garmin',
     };
 
-    const { error: upsertErr } = await sb
+    const { error: sleepErr } = await sb
       .from('health_logs')
-      .upsert(healthLog, { onConflict: 'user_id,date' });
+      .upsert(sleepLog, { onConflict: 'user_id,date' });
 
-    if (upsertErr) {
-      return res.status(500).json({ error: upsertErr.message });
+    if (sleepErr) return res.status(500).json({ error: sleepErr.message });
+
+    // ── 2. Stappen van gisteren → alleen steps-kolom updaten ─────────────────
+    if (totalSteps !== null) {
+      const { data: existing } = await sb
+        .from('health_logs')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('date', yesterday)
+        .maybeSingle();
+
+      if (existing) {
+        await sb.from('health_logs')
+          .update({ steps: totalSteps })
+          .eq('user_id', user.id)
+          .eq('date', yesterday);
+      } else {
+        await sb.from('health_logs').insert({
+          user_id: user.id,
+          date:    yesterday,
+          steps:   totalSteps,
+          notes:   'Garmin stappen (automatisch)',
+        });
+      }
     }
 
-    return res.status(200).json({ ok: true, date: today, data: healthLog });
+    return res.status(200).json({ ok: true, sleepDate: today, stepsDate: yesterday, data: sleepLog });
   } catch (e) {
     console.error('Garmin sync mislukt:', e.message);
     return res.status(500).json({ error: e.message });
