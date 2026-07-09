@@ -3224,6 +3224,7 @@ async function syncStrava(btn) {
         renderProfileTab();
       }
       renderActivities();
+      renderTrainingLoad();
       toast(`${data.activityCount} activiteiten gesynchroniseerd!`, 'success');
     } else {
       toast(data.error || 'Sync mislukt.', 'error');
@@ -4806,8 +4807,8 @@ async function autoSyncIfNeeded() {
           ACTIVITIES = data.activities;
           localStorage.setItem('strava_last_sync', String(Date.now()));
           renderActivities();
-          // Herbereken plan — zones kunnen nu afwijken van eerder
           generateAndRender();
+          renderTrainingLoad(); // CTL/ATL/TSB bijwerken
         }
       } catch (e) { console.warn('Auto Strava sync mislukt:', e); }
     }
@@ -4945,27 +4946,35 @@ async function syncStravaPace() {
 //   Bike: IF o.b.v. average_watts vs FTP (of schatting uit snelheid)
 //   Swim: (duur_min / 60) × 0.7 × 100  — zwemmen is lager SST
 function estimateTSS(act, profile) {
+  // Support both raw Strava fields (average_speed, average_watts, moving_time)
+  // and DB-stored fields (pace string, watts, duration)
   const durMins = (act.duration || act.moving_time || 0) / 60;
   if (durMins < 5) return 0;
 
   const type = act.type;
 
   if (type === 'Run') {
-    const threshSec = profile?.run_pace ? paceToSec(profile.run_pace) : 300; // sec/km
-    const actPaceSec = act.average_speed > 0 ? 1000 / act.average_speed : threshSec;
-    const IF = Math.min(1.2, threshSec / actPaceSec); // sneller → hogere IF
+    const threshSec = profile?.run_pace ? paceToSec(profile.run_pace) : 300;
+    let actPaceSec = threshSec;
+    if (act.average_speed > 0) {
+      actPaceSec = 1000 / act.average_speed;
+    } else if (act.pace) {
+      actPaceSec = paceToSec(act.pace);
+    }
+    const IF = Math.min(1.2, threshSec / actPaceSec);
     return Math.round((durMins / 60) * IF * IF * 100);
   }
   if (type === 'Ride' || type === 'VirtualRide') {
     const ftp = profile?.ftp || 200;
-    let IF = 0.75; // standaard Z2 schatting
-    if (act.average_watts > 0) IF = Math.min(1.15, act.average_watts / ftp);
+    const w = act.average_watts || act.watts || 0;
+    let IF = 0.75;
+    if (w > 0) IF = Math.min(1.15, w / ftp);
     return Math.round((durMins / 60) * IF * IF * 100);
   }
   if (type === 'Swim') {
     return Math.round((durMins / 60) * 0.65 * 100);
   }
-  return Math.round((durMins / 60) * 0.5 * 100); // andere sporten
+  return Math.round((durMins / 60) * 0.5 * 100);
 }
 
 function calcTrainingLoad() {
