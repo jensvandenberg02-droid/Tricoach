@@ -3095,10 +3095,11 @@ function generatePlan() {
     let sessions = makeSessions(weekZ, phase, nextEvt.type, w + 1, nextEvt);
     sessions = enforcePeriodization(sessions);  // ← structurele bewaker: altijd aanroepen
     sessions = applyInjuries(sessions, INJURIES, weekStart);
-    sessions = applyVacations(sessions, weekStart, VACATIONS);
     if (Object.keys(AVAILABILITY).length) {
       sessions = scheduleWithAvailability(sessions, AVAILABILITY);
     }
+    // Vakantie als laatste — overschrijft alles inclusief availability-scheduling
+    sessions = applyVacations(sessions, weekStart, VACATIONS);
 
     plan.push({ weekNum: w + 1, weekStart, phase, sessions, events: thisWeekEvents });
   }
