@@ -3473,28 +3473,58 @@ function decodePolyline(enc) {
   return out;
 }
 
-async function initActivityMap(polylineStr, sportType, latlngStream) {
-  // Coördinaten ophalen: eerst encoded polyline, anders raw latlng stream
-  let coords = [];
-  if (polylineStr) {
-    coords = decodePolyline(polylineStr);
-  } else if (latlngStream?.length > 1) {
-    // latlng stream: [[lat,lng], ...] — subsample om performant te blijven
-    const step = Math.max(1, Math.floor(latlngStream.length / 500));
-    coords = latlngStream.filter((_, i) => i % step === 0);
-  }
-  if (coords.length < 2) return;
-
+async function initActivityMap(polylineStr, sportType, latlngStream, activityId) {
   // Vernietig oude kaart veilig (DOM kan al vervangen zijn)
   if (_adMap) { try { _adMap.remove(); } catch(e) {} _adMap = null; }
 
   await loadLeaflet();
   if (!window.L) return;
 
-  // Controleer of het element nog bestaat (panel kan gesloten zijn tijdens laden)
   const el = document.getElementById('ad-map');
   if (!el) return;
 
+  // ── Coördinaten bepalen (drie bronnen in volgorde van voorkeur) ───────────
+  let coords = [];
+
+  // 1. Encoded polyline (snelste, al in activiteitsresponse)
+  if (polylineStr) {
+    coords = decodePolyline(polylineStr);
+  }
+
+  // 2. Raw latlng stream (als meegestuurd)
+  if (coords.length < 2 && latlngStream?.length > 1) {
+    const step = Math.max(1, Math.floor(latlngStream.length / 500));
+    coords = latlngStream.filter((_, i) => i % step === 0);
+  }
+
+  // 3. Aparte streams-aanroep als fallback
+  if (coords.length < 2 && activityId && ACCESS_TOKEN) {
+    try {
+      const r = await fetch(
+        `/api/strava-activity?id=${activityId}`,
+        { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } }
+      );
+      if (r.ok) {
+        const d = await r.json();
+        const pl = d.activity?.map?.polyline || d.activity?.map?.summary_polyline || '';
+        if (pl) coords = decodePolyline(pl);
+        if (coords.length < 2 && d.streams?.latlng?.data?.length > 1) {
+          const raw = d.streams.latlng.data;
+          const step = Math.max(1, Math.floor(raw.length / 500));
+          coords = raw.filter((_, i) => i % step === 0);
+        }
+      }
+    } catch(e) { /* stille fallback */ }
+  }
+
+  // Geen GPS beschikbaar
+  if (coords.length < 2) {
+    el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--t3);font-size:13px">Geen GPS-data beschikbaar</div>`;
+    return;
+  }
+
+  // ── Kaart renderen ────────────────────────────────────────────────────────
+  el.innerHTML = ''; // verwijder "laden…" tekst
   const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
   const tile   = isDark
     ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
@@ -3508,16 +3538,14 @@ async function initActivityMap(polylineStr, sportType, latlngStream) {
     const route = L.polyline(coords, { color: routeColor, weight: 4, opacity: .9 }).addTo(map);
     map.fitBounds(route.getBounds(), { padding: [20, 20] });
 
-    // Start (groen) en finish (rood) stip
     L.circleMarker(coords[0],                 { radius:7, fillColor:'#22c55e', color:'#fff', weight:2, fillOpacity:1 }).addTo(map);
     L.circleMarker(coords[coords.length - 1], { radius:7, fillColor:'#ef4444', color:'#fff', weight:2, fillOpacity:1 }).addTo(map);
 
     _adMap = map;
-    // invalidateSize zodat Leaflet de juiste container-afmetingen gebruikt
-    // na de slide-in animatie van het paneel
     setTimeout(() => { if (_adMap) _adMap.invalidateSize(); }, 350);
   } catch(e) {
     console.warn('[TriCoach] Map init fout:', e);
+    el.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--t3);font-size:13px">Kaart kon niet geladen worden</div>`;
   }
 }
 
@@ -3709,10 +3737,9 @@ function renderActivityDetail(act, laps, streams) {
 
   // ── RENDER HTML ───────────────────────────────────────────
   document.getElementById('ad-body').innerHTML = `
-    ${(polyline || latlngStream?.length > 1) ? `
     <div class="ad-map-section">
-      <div id="ad-map"></div>
-    </div>` : ''}
+      <div id="ad-map"><div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--t3);font-size:13px">Kaart laden…</div></div>
+    </div>
     <div class="ad-header-info">
       <div class="ad-sport-icon ${sport.cls}">${sport.icon}</div>
       <div>
@@ -3853,7 +3880,7 @@ function renderActivityDetail(act, laps, streams) {
 
   // ── KAART ─────────────────────────────────────────────────
   // setTimeout zodat de DOM en panel-animatie zeker klaar zijn voor Leaflet
-  setTimeout(() => initActivityMap(polyline, act.type, latlngStream), 80);
+  setTimeout(() => initActivityMap(polyline, act.type, latlngStream, act.id), 80);
 }
 
 // ── EVENTS ────────────────────────────────────────────────────
