@@ -5021,12 +5021,18 @@ function estimateFinishTime(ev) {
   let hasAny = false;
 
   // ── Correctiefactoren: Strava-tempo's zijn trainings/drempel-tempo, geen racetempo ──
-  // Loopfactor: hoe meer fietskilometers vooraf, hoe trager de loop
+  // Loopfactor t.o.v. beste Strava 5-10km tempo (dat is al een hard tempo, geen race-pace)
+  // Van 5K-bestpace naar racetempo op langere afstand: steeds meer %  trager
   const RUN_FACTOR = {
-    '5K': 1.00, '10K': 1.02, 'HM': 1.04, 'marathon': 1.06,
-    'sprint-tri': 1.08, 'duathlon': 1.10, 'olympic-tri': 1.15,
-    'HIM': 1.25,  // 90km fiets maakt loop merkbaar trager
-    'IM':  1.40,  // 180km fiets = veel trager lopen
+    '5K':          1.00,  // race IS je 5K-tempo
+    '10K':         1.06,  // ~6% trager dan 5K-tempo
+    'HM':          1.12,  // ~12% trager
+    'marathon':    1.18,  // ~18% trager → van 5:00/km tempo → ~5:54/km race
+    'sprint-tri':  1.10,  // korte loop na fiets
+    'duathlon':    1.12,
+    'olympic-tri': 1.18,  // 10km na 40km fiets
+    'HIM':         1.28,  // 21km na 90km fiets
+    'IM':          1.45,  // 42km na 180km fiets
   };
   const runFactor  = RUN_FACTOR[ev.type] ?? 1.10;
   const swimFactor = 1.10; // CSS = pool-drempel, openwater ~10% trager
