@@ -4250,24 +4250,35 @@ function trendBadge(curr, prev, higherIsBetter = true, unit = '') {
 }
 
 function renderHealthTab() {
-  const latest = HEALTH[0];
-  const prev   = HEALTH[1];
+  // Per metriek de meest recente rij zoeken met een niet-null waarde
+  // (Garmin slaat slaap, stappen en VO2max op verschillende datums op)
+  const latestVal = (field) => HEALTH.find(h => h[field] != null);
+  const prevVal   = (field) => {
+    const idx = HEALTH.findIndex(h => h[field] != null);
+    return idx >= 0 ? HEALTH.find((h, i) => i > idx && h[field] != null) : null;
+  };
+
+  const lBatt  = latestVal('body_battery');
+  const lSleep = latestVal('sleep_hours');
+  const lHrv   = latestVal('hrv');
+  const lSteps = latestVal('steps');
+  const lScore = latestVal('sleep_score');
 
   // Stat cards
   document.getElementById('g-vo2max').textContent       = PROFILE?.vo2max != null ? Number(PROFILE.vo2max).toFixed(1) : '—';
-  document.getElementById('g-battery').textContent      = latest?.body_battery ?? '—';
-  document.getElementById('g-sleep').textContent        = latest?.sleep_hours ?? '—';
-  document.getElementById('g-hrv').textContent          = latest?.hrv ?? '—';
-  document.getElementById('g-steps').textContent        = latest?.steps ? latest.steps.toLocaleString('nl-BE') : '—';
-  document.getElementById('g-sleep-score').textContent  = latest?.sleep_score ?? '—';
+  document.getElementById('g-battery').textContent      = lBatt?.body_battery ?? '—';
+  document.getElementById('g-sleep').textContent        = lSleep?.sleep_hours ?? '—';
+  document.getElementById('g-hrv').textContent          = lHrv?.hrv ?? '—';
+  document.getElementById('g-steps').textContent        = lSteps?.steps ? lSteps.steps.toLocaleString('nl-BE') : '—';
+  document.getElementById('g-sleep-score').textContent  = lScore?.sleep_score ?? '—';
 
   // Trend badges
   document.getElementById('trend-vo2max').innerHTML      = '';
-  document.getElementById('trend-battery').innerHTML     = trendBadge(latest?.body_battery, prev?.body_battery, true);
-  document.getElementById('trend-sleep').innerHTML       = trendBadge(latest?.sleep_hours, prev?.sleep_hours, true, 'h');
-  document.getElementById('trend-hrv').innerHTML         = trendBadge(latest?.hrv, prev?.hrv, true);
-  document.getElementById('trend-steps').innerHTML       = trendBadge(latest?.steps, prev?.steps, true);
-  document.getElementById('trend-sleep-score').innerHTML = trendBadge(latest?.sleep_score, prev?.sleep_score, true);
+  document.getElementById('trend-battery').innerHTML     = trendBadge(lBatt?.body_battery, prevVal('body_battery')?.body_battery, true);
+  document.getElementById('trend-sleep').innerHTML       = trendBadge(lSleep?.sleep_hours, prevVal('sleep_hours')?.sleep_hours, true, 'h');
+  document.getElementById('trend-hrv').innerHTML         = trendBadge(lHrv?.hrv, prevVal('hrv')?.hrv, true);
+  document.getElementById('trend-steps').innerHTML       = trendBadge(lSteps?.steps, prevVal('steps')?.steps, true);
+  document.getElementById('trend-sleep-score').innerHTML = trendBadge(lScore?.sleep_score, prevVal('sleep_score')?.sleep_score, true);
 
   // Charts
   renderHealthCharts();
@@ -4309,7 +4320,7 @@ function renderHealthCharts() {
 
   // ── 1. Body Battery Donut ──────────────────────────────────
   destroyChart('battery');
-  const battVal = HEALTH[0]?.body_battery ?? 0;
+  const battVal = HEALTH.find(h => h.body_battery != null)?.body_battery ?? 0;
   document.getElementById('chart-battery-val').textContent = battVal || '—';
   const battCtx = document.getElementById('chart-battery')?.getContext('2d');
   if (battCtx) {
