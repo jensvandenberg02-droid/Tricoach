@@ -67,26 +67,37 @@ function buildSystemPrompt({ profile, events, injuries, health, recentActivities
   const p = profile || {};
   const now = new Date().toISOString().slice(0, 10);
 
-  // Events samenvatting
-  const evtLines = (events || []).map(e =>
+  // Alleen aankomende events (datum >= vandaag), gesorteerd
+  const futureEvents = (events || [])
+    .filter(e => e.date >= now)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const evtLines = futureEvents.map(e =>
     `  - ${e.name} (${e.type}) op ${e.date}, prioriteit ${e.priority || '?'}${e.goal_time ? `, streeftijd ${e.goal_time}` : ''}`
-  ).join('\n') || '  Geen events ingepland.';
+  ).join('\n') || '  Geen aankomende events.';
 
   // Actieve blessures/condities
   const injLines = (injuries || []).filter(i => !i.end_date || i.end_date >= now).map(i =>
     `  - ${i.category || 'injury'}: ${i.body_part || ''} — ${i.notes || ''} (vanaf ${i.start_date})`
   ).join('\n') || '  Geen actieve blessures.';
 
-  // Laatste gezondheidsdata
-  const h = (health || [])[0] || {};
-  const healthStr = h.date
-    ? `HRV: ${h.hrv ?? '?'}, Slaap: ${h.sleep_hours ?? '?'}u (score ${h.sleep_score ?? '?'}), Body battery: ${h.body_battery ?? '?'}, VO2max: ${h.vo2max ?? '?'} (${h.date})`
+  // Gezondheidsdata — per metriek de meest recente niet-null waarde
+  const hArr = health || [];
+  const latestH = (field) => hArr.find(h => h[field] != null);
+  const hrv         = latestH('hrv')?.hrv ?? '?';
+  const sleepHours  = latestH('sleep_hours')?.sleep_hours ?? '?';
+  const sleepScore  = latestH('sleep_score')?.sleep_score ?? '?';
+  const bodyBattery = latestH('body_battery')?.body_battery ?? '?';
+  const steps       = latestH('steps')?.steps ?? '?';
+  const healthStr = hArr.length
+    ? `HRV: ${hrv}, Slaap: ${sleepHours}u (score ${sleepScore}), Body battery: ${bodyBattery}, Stappen: ${steps}`
     : 'Geen gezondheidsdata beschikbaar.';
 
-  // Recente activiteiten samenvatting (max 10)
+  // Recente activiteiten (Strava gebruikt start_date en moving_time)
   const actLines = (recentActivities || []).slice(0, 10).map(a => {
-    const km = a.distance ? (a.distance / 1000).toFixed(1) + ' km' : '';
-    return `  - ${a.date} ${a.type} ${a.name} ${km} ${a.duration ? Math.round(a.duration/60) + 'min' : ''}`;
+    const date = (a.start_date || a.date || '').slice(0, 10);
+    const km   = a.distance ? (a.distance / 1000).toFixed(1) + ' km' : '';
+    const dur  = (a.moving_time || a.duration) ? Math.round((a.moving_time || a.duration) / 60) + 'min' : '';
+    return `  - ${date} ${a.sport_type || a.type || ''} "${a.name}" ${km} ${dur}`;
   }).join('\n') || '  Geen recente activiteiten.';
 
   // Laatste weekreflectie
