@@ -4550,6 +4550,128 @@ function switchTab(name) {
   document.getElementById(`tab-${name}`)?.classList.add('active');
   const idx = { plan:0, activities:1, events:2, injuries:3, health:4, profile:5, coach:6 }[name];
   document.querySelectorAll('#topbar nav button')[idx]?.classList.add('active');
+  if (name === 'coach' && COACH_MESSAGES.length === 0) {
+    setTimeout(triggerDailyBrief, 200);
+  }
+}
+
+function triggerDailyBrief() {
+  // Bouw context op voor de dagelijkse brief
+  const now  = new Date();
+  const days  = ['zondag','maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag'];
+  const months = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
+  const dateStr = `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+
+  // Volgende event
+  const nextEvt = EVENTS.filter(e => new Date(e.date) >= now)
+    .sort((a,b) => new Date(a.date)-new Date(b.date))[0];
+  const eventInfo = nextEvt
+    ? `Volgend event: "${nextEvt.name}" (${eventTypeLabel(nextEvt.type)}) op ${nextEvt.date} — nog ${Math.ceil((new Date(nextEvt.date)-now)/86400000)} dagen.`
+    : 'Geen aankomend event gepland.';
+
+  // Huidige week sessies
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay() + 1); weekStart.setHours(0,0,0,0);
+  let plan = [];
+  try { plan = generatePlan(); } catch(e) {}
+  const weekSessions = plan.find(w => {
+    const ws = new Date(w.weekStart);
+    return ws >= weekStart && ws < new Date(weekStart.getTime() + 7*86400000);
+  }) || plan[0];
+
+  const dayMap = { 0:'Zo', 1:'Ma', 2:'Di', 3:'Wo', 4:'Do', 5:'Vr', 6:'Za' };
+  const todayCode = dayMap[now.getDay()];
+  const todaySession = weekSessions?.sessions?.find(s => s.day === todayCode);
+  const sessionInfo = todaySession
+    ? `Sessie vandaag (${todayCode}): ${todaySession.name} — ${todaySession.meta || ''} — ${todaySession.desc || ''}`
+    : 'Rust- of hersteldag vandaag.';
+
+  const phaseInfo = weekSessions?.phase ? `Trainingsfase: ${weekSessions.phase}.` : '';
+
+  // Profiel
+  const p = PROFILE || {};
+  const profileInfo = [
+    p.ftp ? `FTP ${p.ftp}W` : '',
+    p.vo2max ? `VO₂max ${p.vo2max}` : '',
+    p.run_pace ? `looptempo ${p.run_pace}/km` : '',
+  ].filter(Boolean).join(', ');
+
+  // Laatste activiteit
+  const lastAct = ACTIVITIES?.[0];
+  const lastActInfo = lastAct
+    ? `Laatste activiteit: "${lastAct.name}" ${lastAct.distance ? ((lastAct.distance/1000).toFixed(1)+'km') : ''} op ${lastAct.start_date?.slice(0,10) || ''}.`
+    : '';
+
+  const prompt = `Vandaag is het ${dateStr}. Schrijf een persoonlijke, warme dagelijkse trainingsbrief als coach.
+Geef uitgebreide uitleg en motivatie — een goede lange tekst is gewenst.
+Bespreek: wat de atleet vandaag moet doen en waarom, hoe dit past in de bredere voorbereiding, concrete tips voor de sessie, en een motiverende afsluiting.
+
+Context:
+- ${eventInfo}
+- ${sessionInfo}
+- ${phaseInfo}
+- Profiel: ${profileInfo || 'niet ingesteld'}
+- ${lastActInfo}
+
+Schrijf in het Nederlands, persoonlijk en direct (gebruik "je/jij"). Begin met een begroeting voor de dag van de week.`;
+
+  sendCoachMessageWithText(prompt, true);
+}
+
+async function sendCoachMessageWithText(text, isSystem = false) {
+  if (!ACCESS_TOKEN) return;
+  const msgEl = document.getElementById('coach-messages');
+  if (!msgEl) return;
+
+  // Verberg de intro card
+  const intro = document.querySelector('.coach-intro');
+  if (intro) intro.style.display = 'none';
+
+  // Stuur de tekst als user-bericht naar de API, maar toon het niet in de chat
+  // (het is een systeem-triggered brief, niet getypt door de gebruiker)
+  const messagesForApi = [
+    { role: 'user', content: text },
+  ];
+
+  // Typing indicator
+  const typingId = 'coach-brief-typing-' + Date.now();
+  msgEl.insertAdjacentHTML('beforeend', `
+    <div class="coach-msg assistant" id="${typingId}">
+      <div class="coach-avatar">🤖</div>
+      <div class="coach-bubble"><div class="coach-typing"><span></span><span></span><span></span></div></div>
+    </div>`);
+  msgEl.scrollTop = msgEl.scrollHeight;
+
+  const sendBtn = document.getElementById('coach-send-btn');
+  if (sendBtn) sendBtn.disabled = true;
+
+  try {
+    const res = await fetch('/api/ai-coach', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        messages: messagesForApi,
+        context: buildCoachContext(),
+        isBrief: isSystem,
+      }),
+    });
+    const data = await res.json();
+    document.getElementById(typingId)?.remove();
+
+    if (data.ok && data.reply) {
+      COACH_MESSAGES.push({ role: 'assistant', content: data.reply });
+    } else {
+      COACH_MESSAGES.push({ role: 'assistant', content: data.error || 'Er ging iets mis bij het laden van de brief.' });
+    }
+  } catch(e) {
+    document.getElementById(typingId)?.remove();
+    COACH_MESSAGES.push({ role: 'assistant', content: 'Coach niet bereikbaar: ' + e.message });
+  }
+
+  if (sendBtn) sendBtn.disabled = false;
+  renderCoachMessages();
 }
 
 // ── MODAL HELPERS ─────────────────────────────────────────────
