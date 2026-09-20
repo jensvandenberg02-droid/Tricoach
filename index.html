@@ -2824,7 +2824,33 @@ function enforcePeriodization(sessions) {
     return out;
   });
 
-  return fixed;
+  // REGEL 4: Geen 3 opeenvolgende loopsessies
+  // Als er 3+ lopen achter elkaar staan, wordt de middelste vervangen door cross-training (fiets Z1).
+  // Dit voorkomt dat de beschikbaarheidsscheduler of blessureswaps een onverantwoord loopblok creëren.
+  const fixed2 = [...fixed];
+  for (let i = 1; i < fixed2.length - 1; i++) {
+    const prev = fixed2[i - 1];
+    const curr = fixed2[i];
+    const next = fixed2[i + 1];
+    const isRun = s => s.type === 'run' && s.type !== 'rest';
+    if (isRun(prev) && isRun(curr) && isRun(next)) {
+      // Vervang de middelste door cross-training
+      fixed2[i] = {
+        ...curr,
+        type: 'bike',
+        name: 'Cross-training herstel',
+        meta: '40 min Z1',
+        desc: '[Auto] Vervangen door cross-training — te veel opeenvolgende lopen is niet verantwoord',
+        garminSteps: [
+          { kind:'warmup',   secs:300,  desc:'5 min Z1' },
+          { kind:'interval', secs:1500, desc:'25 min Z1 fiets' },
+          { kind:'cooldown', secs:300,  desc:'5 min Z1' },
+        ],
+      };
+    }
+  }
+
+  return fixed2;
 }
 
 // weekDate: de startdatum van de te beoordelen week (voor toekomstige weken)
@@ -3123,11 +3149,12 @@ function generatePlan() {
     const weekZ = goalOverride ? { ...zBase, ...goalOverride } : zBase;
 
     let sessions = makeSessions(weekZ, phase, nextEvt.type, w + 1, nextEvt);
-    sessions = enforcePeriodization(sessions);  // ← structurele bewaker: altijd aanroepen
     sessions = applyInjuries(sessions, INJURIES, weekStart);
     if (Object.keys(AVAILABILITY).length) {
       sessions = scheduleWithAvailability(sessions, AVAILABILITY);
     }
+    // Periodisatie NA beschikbaarheidsscheduling — anders worden omgewisselde sessies niet gecheckt
+    sessions = enforcePeriodization(sessions);
     // Vakantie als laatste — overschrijft alles inclusief availability-scheduling
     sessions = applyVacations(sessions, weekStart, VACATIONS);
 
