@@ -719,6 +719,17 @@ a { color: var(--accent); text-decoration: none; }
 .coach-intro {
   text-align: center; padding: 28px 20px;
 }
+#plan-insight-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r);
+  padding: 18px 20px;
+}
+#plan-insight-body strong { color: var(--text); }
+#plan-insight-body p { margin: 0 0 12px; }
+#plan-insight-body p:last-child { margin-bottom: 0; }
+#plan-insight-refresh:hover { color: var(--accent) !important; background: var(--bg3) !important; }
 .coach-suggestions {
   display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px;
 }
@@ -1110,6 +1121,26 @@ a { color: var(--accent); text-decoration: none; }
           </button>
         </div>
       </div>
+      <!-- AI Dagelijkse Analyse -->
+      <div id="plan-insight-card" style="display:none;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🤖</div>
+          <div>
+            <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)">Dagelijkse AI Analyse</div>
+            <div id="plan-insight-date" style="font-size:11px;color:var(--muted)"></div>
+          </div>
+          <button id="plan-insight-refresh" onclick="refreshPlanInsight()" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;border-radius:6px;line-height:0" title="Ververs analyse">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" width="15" height="15"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
+        <div id="plan-insight-body" style="font-size:14px;line-height:1.75;color:var(--t2)">
+          <div style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px">
+            <div class="coach-typing" style="display:inline-flex"><span></span><span></span><span></span></div>
+            Analyse wordt geladen…
+          </div>
+        </div>
+      </div>
+
       <div id="plan-grid"><div class="empty"><div class="ico">🗓️</div>Voeg events toe om een plan te genereren.</div></div>
     </div>
 
@@ -1758,6 +1789,7 @@ async function bootApp() {
   updateCountdown();
   setInterval(updateCountdown, 60000);
   autoSyncIfNeeded();
+  loadPlanInsight();
 }
 
 function showLogin() {
@@ -5808,6 +5840,112 @@ function openChecklistModal(evt) {
 
   document.getElementById('checklist-body').innerHTML = html;
   openModal('checklist-modal');
+}
+
+// ── PLAN INSIGHT ──────────────────────────────────────────────
+let _planInsightLoaded = false;
+
+async function loadPlanInsight(force = false) {
+  if (!ACCESS_TOKEN) return;
+  if (_planInsightLoaded && !force) return;
+
+  const card = document.getElementById('plan-insight-card');
+  const body = document.getElementById('plan-insight-body');
+  const dateEl = document.getElementById('plan-insight-date');
+  const refreshBtn = document.getElementById('plan-insight-refresh');
+  if (!card || !body) return;
+
+  // Toon de kaart met loading state
+  card.style.display = 'block';
+  body.innerHTML = `<div style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px">
+    <div class="coach-typing" style="display:inline-flex"><span></span><span></span><span></span></div>
+    Analyse wordt geladen…
+  </div>`;
+  if (refreshBtn) refreshBtn.disabled = true;
+
+  // Datum label
+  const now = new Date();
+  const days = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
+  const months = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+  if (dateEl) dateEl.textContent = `${days[now.getDay()]} ${now.getDate()} ${months[now.getMonth()]}`;
+
+  // Bouw de analyse-prompt
+  const lastAct = ACTIVITIES?.[0];
+  const lastActInfo = lastAct
+    ? `Laatste activiteit: "${lastAct.name}" (${lastAct.type}) — ${lastAct.distance ? (lastAct.distance/1000).toFixed(1)+'km' : ''} op ${lastAct.start_date?.slice(0,10)}, hartslag gem ${lastAct.average_heartrate ? Math.round(lastAct.average_heartrate)+'bpm' : '?'}`
+    : 'Geen recente activiteit beschikbaar.';
+
+  const recentActs = (ACTIVITIES || []).slice(0, 5).map(a => {
+    const km = a.distance ? (a.distance/1000).toFixed(1)+'km' : '';
+    const dur = a.moving_time ? Math.round(a.moving_time/60)+'min' : '';
+    return `${a.start_date?.slice(0,10)} ${a.type} "${a.name}" ${km} ${dur}`;
+  }).join('\n') || 'Geen activiteiten.';
+
+  const h = (HEALTH || [])[0];
+  const healthInfo = h
+    ? `HRV: ${h.hrv ?? '?'}, Slaap: ${h.sleep_hours ?? '?'}u (score ${h.sleep_score ?? '?'}), Body battery: ${h.body_battery ?? '?'}, Stappen gisteren: ${h.steps ?? '?'}`
+    : 'Geen gezondheidsdata beschikbaar.';
+
+  const nextEvt = (EVENTS || []).filter(e => new Date(e.date) >= now)
+    .sort((a,b) => new Date(a.date)-new Date(b.date))[0];
+  const eventInfo = nextEvt
+    ? `Volgend event: "${nextEvt.name}" op ${nextEvt.date} (nog ${Math.ceil((new Date(nextEvt.date)-now)/86400000)} dagen)`
+    : 'Geen aankomend event.';
+
+  const prompt = `Schrijf een korte dagelijkse trainingsanalyse (3 alinea's, maximaal 180 woorden totaal). Geen opsommingen.
+
+Alinea 1: Samenvatting van de laatste training — wat deed de atleet, hoe zag het eruit qua intensiteit en belasting?
+Alinea 2: Tendens in de trainingsdata van de afgelopen week — volume, herstel, consistentie. Wat valt op?
+Alinea 3: Advies op basis van de lichaamssignalen (HRV, slaap, body battery) — wat kan de atleet vandaag het beste doen?
+
+Schrijf bondig, direct, persoonlijk (gebruik "je/jij"). Geen begroeting, geen afsluiting — gewoon de analyse.
+
+Data:
+- ${lastActInfo}
+- Recente activiteiten:\n${recentActs}
+- Gezondheidsdata: ${healthInfo}
+- ${eventInfo}`;
+
+  try {
+    const res = await fetch('/api/ai-coach', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: prompt }],
+        context: buildCoachContext(),
+      }),
+    });
+    const data = await res.json();
+
+    if (data.ok && data.reply) {
+      _planInsightLoaded = true;
+      // Render alinea's
+      const paragraphs = data.reply
+        .split(/\n\n+/)
+        .filter(p => p.trim())
+        .map(p => {
+          const escaped = p.trim()
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+          return `<p>${escaped}</p>`;
+        }).join('');
+      body.innerHTML = paragraphs;
+    } else {
+      body.innerHTML = `<span style="color:var(--muted);font-size:13px">Analyse niet beschikbaar.</span>`;
+    }
+  } catch(e) {
+    body.innerHTML = `<span style="color:var(--muted);font-size:13px">Verbindingsfout: ${e.message}</span>`;
+  } finally {
+    if (refreshBtn) refreshBtn.disabled = false;
+  }
+}
+
+function refreshPlanInsight() {
+  _planInsightLoaded = false;
+  loadPlanInsight(true);
 }
 
 // ── AI COACH ──────────────────────────────────────────────────
