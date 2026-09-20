@@ -25,13 +25,14 @@ export default async function handler(req, res) {
   const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
   if (authErr || !user) return res.status(401).json({ error: 'Ongeldige sessie.' });
 
-  const { messages, context } = req.body;
+  const { messages, context, isBrief } = req.body;
   if (!messages?.length) return res.status(400).json({ error: 'Geen berichten.' });
 
   // Bouw systeem-prompt op basis van app-context die de client meestuurt
   const { profile, events, injuries, health, recentActivities, weekReflections } = context || {};
 
-  const systemPrompt = buildSystemPrompt({ profile, events, injuries, health, recentActivities, weekReflections });
+  const systemPrompt = buildSystemPrompt({ profile, events, injuries, health, recentActivities, weekReflections, isBrief });
+  const maxTokens = isBrief ? 2048 : 1024;
 
   try {
     const response = await fetch(ANTHROPIC_API_URL, {
@@ -43,7 +44,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 1024,
+        max_tokens: maxTokens,
         system: systemPrompt,
         messages: messages.map(m => ({ role: m.role, content: m.content })),
       }),
@@ -62,7 +63,7 @@ export default async function handler(req, res) {
   }
 }
 
-function buildSystemPrompt({ profile, events, injuries, health, recentActivities, weekReflections }) {
+function buildSystemPrompt({ profile, events, injuries, health, recentActivities, weekReflections, isBrief }) {
   const p = profile || {};
   const now = new Date().toISOString().slice(0, 10);
 
@@ -122,7 +123,8 @@ ${refStr}
 - Gebruik bovenstaande data als basis voor je antwoorden.
 - Bij vragen over training, voeding, herstel of tactiek: geef specifiek advies op basis van de atleetdata.
 - Als je iets niet weet of data ontbreekt, zeg dat eerlijk.
-- Houd antwoorden onder 300 woorden tenzij de vraag meer detail vereist.
-- Gebruik geen opsommingen tenzij echt nodig.
+${isBrief
+  ? `- Dit is een dagelijkse welkomstbrief. Schrijf een uitgebreide, persoonlijke brief (minimaal 400 woorden). Bespreek: de sessie van vandaag en waarom die past in het grotere plaatje, concrete uitvoeringstips, hoe het aansluit op recent herstel en gezondheidsdata, en een motiverende afsluiting. Gebruik alinea's, geen opsommingen.`
+  : `- Houd antwoorden onder 300 woorden tenzij de vraag meer detail vereist.\n- Gebruik geen opsommingen tenzij echt nodig.`}
 - Vandaag is het ${now}.`;
 }
