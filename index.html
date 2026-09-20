@@ -1769,12 +1769,17 @@ let _SESSIONS_MAP = {}; // key → sessie-object, gevuld bij render
 
   // Auth state listener
   sb.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session) {
-      USER = session.user;
+    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+      const wasLoggedIn = !!ACCESS_TOKEN;
       ACCESS_TOKEN = session.access_token;
-      await bootApp();
+      USER = session.user;
+      if (!wasLoggedIn) {
+        // Eerste login: volledige boot
+        await bootApp();
+      }
+      // TOKEN_REFRESHED: alleen token bijwerken, geen herboot nodig
     } else if (event === 'SIGNED_OUT') {
-      USER = null; PROFILE = null;
+      USER = null; PROFILE = null; ACCESS_TOKEN = null;
       showLogin();
     }
   });
