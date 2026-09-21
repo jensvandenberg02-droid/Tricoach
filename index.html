@@ -1756,6 +1756,41 @@ let ACCESS_TOKEN = null;
 let SHOW_PAST_EVENTS = false;
 let _SESSIONS_MAP = {}; // key → sessie-object, gevuld bij render
 
+// ── PLAN OVERRIDES ────────────────────────────────────────────────────────────
+// Wijzigingen die de AI coach heeft aangebracht, opgeslagen als:
+//   { "YYYY-MM-DD_Day": session | null }
+// null = verwijderd (rustdag), session-object = vervangen sessie
+// Wordt opgeslagen in localStorage zodat het behouden blijft na een refresh.
+let PLAN_OVERRIDES = {};
+
+function loadPlanOverrides() {
+  try {
+    const raw = localStorage.getItem(`tricoach_overrides_${USER?.id || 'local'}`);
+    PLAN_OVERRIDES = raw ? JSON.parse(raw) : {};
+  } catch(e) { PLAN_OVERRIDES = {}; }
+}
+
+function savePlanOverrides() {
+  try {
+    localStorage.setItem(`tricoach_overrides_${USER?.id || 'local'}`, JSON.stringify(PLAN_OVERRIDES));
+  } catch(e) {}
+}
+
+function clearPlanOverride(key) {
+  delete PLAN_OVERRIDES[key];
+  savePlanOverrides();
+  generateAndRender();
+}
+
+// Berekent de weekStart-datum (maandag) voor een gegeven weekOffset (0=huidige week)
+function weekStartForOffset(offset) {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) + offset * 7);
+  return monday.toISOString().slice(0, 10);
+}
+
 // ── BOOT ──────────────────────────────────────────────────────
 (async () => {
   // Check voor actieve sessie
@@ -1790,6 +1825,7 @@ async function bootApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   await loadAll();
+  loadPlanOverrides(); // laad coach-wijzigingen uit localStorage
   updateHero();
   generateAndRender();
   updateCountdown();
@@ -3653,6 +3689,19 @@ function generatePlan() {
     // Zone-targets toevoegen (HR en watt) aan alle actieve sessies
     sessions = addZoneTargets(sessions, weekZ);
 
+    // Coach-overrides toepassen (AI coach-aanpassingen bewaard in localStorage)
+    const overrideKey = weekStart;
+    if (PLAN_OVERRIDES[overrideKey]) {
+      const overrides = PLAN_OVERRIDES[overrideKey]; // { day: { remove: true } | { replace: {type, desc, meta} } }
+      sessions = sessions.map(s => {
+        const ov = overrides[s.day];
+        if (!ov) return s;
+        if (ov.remove) return { ...s, type: 'rest', icon: '🛌', desc: 'Rust (coach aanpassing)', meta: '', _coachRemoved: true };
+        if (ov.replace) return { ...s, ...ov.replace, _coachEdited: true };
+        return s;
+      });
+    }
+
     // Vakantie als laatste — overschrijft alles inclusief availability-scheduling
     sessions = applyVacations(sessions, weekStart, VACATIONS);
 
@@ -5318,6 +5367,7 @@ async function sendCoachMessageWithText(text, isSystem = false) {
 
     if (data.ok && data.reply) {
       COACH_MESSAGES.push({ role: 'assistant', content: data.reply });
+      if (data.planEdit) applyPlanEdit(data.planEdit);
     } else {
       COACH_MESSAGES.push({ role: 'assistant', content: data.error || 'Er ging iets mis bij het laden van de brief.' });
     }
@@ -6591,6 +6641,19 @@ function refreshPlanInsight() {
 let COACH_MESSAGES = []; // { role: 'user'|'assistant', content: string }
 
 function buildCoachContext() {
+  // Huidige week sessies ophalen voor plan-bewustzijn van de coach
+  let currentWeekSessions = [];
+  try {
+    const plan = generatePlan();
+    const now = new Date();
+    const monday = new Date(now);
+    monday.setHours(0,0,0,0);
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const thisWeekStart = monday.toISOString().slice(0, 10);
+    const thisWeek = plan.find(w => w.weekStart === thisWeekStart);
+    if (thisWeek) currentWeekSessions = thisWeek.sessions;
+  } catch(e) {}
+
   return {
     profile: PROFILE,
     events: EVENTS,
@@ -6598,6 +6661,7 @@ function buildCoachContext() {
     health: HEALTH.slice(0, 3),
     recentActivities: ACTIVITIES.slice(0, 10),
     weekReflections: REFLECTIONS.slice(0, 3),
+    currentWeekSessions,
   };
 }
 
@@ -6678,6 +6742,10 @@ async function sendCoachMessage() {
     document.getElementById(typingId)?.remove();
     if (data.ok && data.reply) {
       COACH_MESSAGES.push({ role: 'assistant', content: data.reply });
+      // Plan-aanpassing toepassen als de coach dat heeft geretourneerd
+      if (data.planEdit) {
+        applyPlanEdit(data.planEdit);
+      }
     } else {
       COACH_MESSAGES.push({ role: 'assistant', content: data.error || 'Er ging iets mis. Probeer opnieuw.' });
     }
@@ -6688,6 +6756,45 @@ async function sendCoachMessage() {
 
   sendBtn.disabled = false;
   renderCoachMessages();
+}
+
+// Coach plan-edit toepassen: planEdit = { weekOffset: 0, changes: { "ma": { remove: true } | { replace: {type, icon, desc, meta} } } }
+function applyPlanEdit(planEdit) {
+  const weekStart = weekStartForOffset(planEdit.weekOffset ?? 0);
+  if (!PLAN_OVERRIDES[weekStart]) PLAN_OVERRIDES[weekStart] = {};
+  Object.assign(PLAN_OVERRIDES[weekStart], planEdit.changes || {});
+  savePlanOverrides();
+  generateAndRender();
+
+  // Bevestigingsbericht toevoegen aan chat
+  const numChanges = Object.keys(planEdit.changes || {}).length;
+  const undoKey = weekStart;
+  const confirmMsg = `✅ Plan aangepast (${numChanges} dag${numChanges !== 1 ? 'en' : ''} gewijzigd). <button onclick="undoPlanEdit('${undoKey}')" style="background:none;border:none;color:var(--accent);cursor:pointer;text-decoration:underline;font-size:inherit;padding:0">Ongedaan maken</button>`;
+  // Voeg bevestiging toe als system bericht (niet in COACH_MESSAGES om de history schoon te houden)
+  const msgEl = document.getElementById('coach-messages');
+  if (msgEl) {
+    msgEl.insertAdjacentHTML('beforeend', `
+      <div class="coach-msg assistant" style="opacity:.7">
+        <div class="coach-avatar">🤖</div>
+        <div class="coach-bubble" style="font-size:13px">${confirmMsg}</div>
+      </div>`);
+    msgEl.scrollTop = msgEl.scrollHeight;
+  }
+}
+
+function undoPlanEdit(weekStart) {
+  delete PLAN_OVERRIDES[weekStart];
+  savePlanOverrides();
+  generateAndRender();
+  const msgEl = document.getElementById('coach-messages');
+  if (msgEl) {
+    msgEl.insertAdjacentHTML('beforeend', `
+      <div class="coach-msg assistant" style="opacity:.7">
+        <div class="coach-avatar">🤖</div>
+        <div class="coach-bubble" style="font-size:13px">↩️ Planwijziging teruggedraaid.</div>
+      </div>`);
+    msgEl.scrollTop = msgEl.scrollHeight;
+  }
 }
 </script>
 </body>
