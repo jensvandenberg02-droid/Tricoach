@@ -119,9 +119,9 @@ function buildSystemPrompt({ profile, events, injuries, health, recentActivities
     ? `RPE ${ref.rpe}/10, energie ${ref.energy}/5, motivatie ${ref.motivation}/5, herstel: ${ref.recovery || '?'}. Notities: ${ref.notes || '—'}`
     : 'Geen weekreflectie beschikbaar.';
 
-  // Huidige week sessies
+  // Huidige week sessies — bewaar de exacte dagcodes voor gebruik in PLAN_EDIT
   const sessLines = (currentWeekSessions || []).map(s =>
-    `  - ${s.day}: [${s.type}] ${s.desc}${s.meta ? ' · ' + s.meta : ''}`
+    `  - ${s.day} [dagcode="${s.day}"]: [${s.type}] ${s.desc}${s.meta ? ' · ' + s.meta : ''}`
   ).join('\n') || '  Geen huidige week sessies beschikbaar.';
 
   return `Je bent een persoonlijke triathloncoach in de TriCoach app. Je geeft advies op maat op basis van de data van de atleet. Je antwoordt altijd in het Nederlands, bondig en concreet. Je bent warm maar direct — geen onnodige uitweidingen.
@@ -168,17 +168,17 @@ Formaat:
 {
   "weekOffset": 0,
   "changes": {
-    "ma": { "remove": true },
-    "wo": { "replace": { "type": "run", "icon": "🏃", "desc": "Korte herstelloop 30 min Z1", "meta": "Z1 · ❤️ 93-111 bpm" } }
+    "Ma": { "remove": true },
+    "Wo": { "replace": { "type": "run", "icon": "🏃", "desc": "Korte herstelloop 30 min Z1", "meta": "Z1 · ❤️ 93-111 bpm" } }
   }
 }
 [/PLAN_EDIT]
 
 Regels:
 - weekOffset: 0 = huidige week, 1 = volgende week (gebruik bijna altijd 0)
-- Geldige dagcodes: "ma", "di", "wo", "do", "vr", "za", "zo"
-- Bij verwijdering: { "remove": true } — dag wordt omgezet naar rust
-- Bij vervanging: { "replace": { type, icon, desc, meta } } — vul alle velden in
+- Gebruik de EXACTE dagcode uit "HUIDIGE WEEK TRAININGSPLAN" hierboven (bijv. "Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo")
+- Bij verwijdering/weghalen van een sessie: { "remove": true } — dag wordt omgezet naar rust
+- Bij vervanging/aanpassen van een sessie: { "replace": { "type": "run|bike|swim|str|rest", "icon": "🏃|🚴|🏊|💪|🛌", "desc": "...", "meta": "..." } }
 - Pas ALLEEN de sessies aan die de gebruiker expliciet wil wijzigen
 - Leg in je antwoord kort uit wat je hebt aangepast en waarom
 - Gebruik het [PLAN_EDIT] blok ALLEEN als er echt een aanpassing nodig is`;
