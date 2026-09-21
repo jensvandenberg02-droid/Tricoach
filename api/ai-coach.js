@@ -29,10 +29,10 @@ export default async function handler(req, res) {
   if (!messages?.length) return res.status(400).json({ error: 'Geen berichten.' });
 
   // Bouw systeem-prompt op basis van app-context die de client meestuurt
-  const { profile, events, injuries, health, recentActivities, weekReflections } = context || {};
+  const { profile, events, injuries, health, recentActivities, weekReflections, currentWeekSessions } = context || {};
 
-  const systemPrompt = buildSystemPrompt({ profile, events, injuries, health, recentActivities, weekReflections, isBrief });
-  const maxTokens = isBrief ? 2048 : 1024;
+  const systemPrompt = buildSystemPrompt({ profile, events, injuries, health, recentActivities, weekReflections, currentWeekSessions, isBrief });
+  const maxTokens = isBrief ? 2048 : 1200;
 
   try {
     const response = await fetch(ANTHROPIC_API_URL, {
@@ -56,14 +56,27 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
-    const reply = data.content?.[0]?.text || '';
-    return res.json({ ok: true, reply });
+    const rawReply = data.content?.[0]?.text || '';
+
+    // Parseer [PLAN_EDIT]{...}[/PLAN_EDIT] marker uit het antwoord
+    let planEdit = null;
+    let reply = rawReply;
+    const planEditMatch = rawReply.match(/\[PLAN_EDIT\]([\s\S]*?)\[\/PLAN_EDIT\]/);
+    if (planEditMatch) {
+      try {
+        planEdit = JSON.parse(planEditMatch[1].trim());
+      } catch(e) { /* ongeldige JSON, negeer */ }
+      // Verwijder de marker uit het antwoord dat de gebruiker ziet
+      reply = rawReply.replace(/\s*\[PLAN_EDIT\][\s\S]*?\[\/PLAN_EDIT\]\s*/g, '').trim();
+    }
+
+    return res.json({ ok: true, reply, planEdit });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
 }
 
-function buildSystemPrompt({ profile, events, injuries, health, recentActivities, weekReflections, isBrief }) {
+function buildSystemPrompt({ profile, events, injuries, health, recentActivities, weekReflections, currentWeekSessions, isBrief }) {
   const p = profile || {};
   const now = new Date().toISOString().slice(0, 10);
 
@@ -106,6 +119,11 @@ function buildSystemPrompt({ profile, events, injuries, health, recentActivities
     ? `RPE ${ref.rpe}/10, energie ${ref.energy}/5, motivatie ${ref.motivation}/5, herstel: ${ref.recovery || '?'}. Notities: ${ref.notes || '—'}`
     : 'Geen weekreflectie beschikbaar.';
 
+  // Huidige week sessies
+  const sessLines = (currentWeekSessions || []).map(s =>
+    `  - ${s.day}: [${s.type}] ${s.desc}${s.meta ? ' · ' + s.meta : ''}`
+  ).join('\n') || '  Geen huidige week sessies beschikbaar.';
+
   return `Je bent een persoonlijke triathloncoach in de TriCoach app. Je geeft advies op maat op basis van de data van de atleet. Je antwoordt altijd in het Nederlands, bondig en concreet. Je bent warm maar direct — geen onnodige uitweidingen.
 
 == ATLEET PROFIEL ==
@@ -130,6 +148,9 @@ ${actLines}
 == LAATSTE WEEKREFLECTIE ==
 ${refStr}
 
+== HUIDIGE WEEK TRAININGSPLAN ==
+${sessLines}
+
 == INSTRUCTIES ==
 - Gebruik bovenstaande data als basis voor je antwoorden.
 - Bij vragen over training, voeding, herstel of tactiek: geef specifiek advies op basis van de atleetdata.
@@ -137,5 +158,28 @@ ${refStr}
 ${isBrief
   ? `- Dit is een dagelijkse welkomstbrief. Schrijf een uitgebreide, persoonlijke brief (minimaal 400 woorden). Bespreek: de sessie van vandaag en waarom die past in het grotere plaatje, concrete uitvoeringstips, hoe het aansluit op recent herstel en gezondheidsdata, en een motiverende afsluiting. Gebruik alinea's, geen opsommingen.`
   : `- Houd antwoorden onder 300 woorden tenzij de vraag meer detail vereist.\n- Gebruik geen opsommingen tenzij echt nodig.`}
-- Vandaag is het ${now}.`;
+- Vandaag is het ${now}.
+
+== PLAN AANPASSEN ==
+Als de gebruiker vraagt om het trainingsplan te wijzigen (bijv. een sessie te verwijderen, te vervangen of te verlichten), MOET je een [PLAN_EDIT] blok toevoegen aan je antwoord. Dit wordt verborgen voor de gebruiker maar door de app verwerkt.
+
+Formaat:
+[PLAN_EDIT]
+{
+  "weekOffset": 0,
+  "changes": {
+    "ma": { "remove": true },
+    "wo": { "replace": { "type": "run", "icon": "🏃", "desc": "Korte herstelloop 30 min Z1", "meta": "Z1 · ❤️ 93-111 bpm" } }
+  }
+}
+[/PLAN_EDIT]
+
+Regels:
+- weekOffset: 0 = huidige week, 1 = volgende week (gebruik bijna altijd 0)
+- Geldige dagcodes: "ma", "di", "wo", "do", "vr", "za", "zo"
+- Bij verwijdering: { "remove": true } — dag wordt omgezet naar rust
+- Bij vervanging: { "replace": { type, icon, desc, meta } } — vul alle velden in
+- Pas ALLEEN de sessies aan die de gebruiker expliciet wil wijzigen
+- Leg in je antwoord kort uit wat je hebt aangepast en waarom
+- Gebruik het [PLAN_EDIT] blok ALLEEN als er echt een aanpassing nodig is`;
 }
