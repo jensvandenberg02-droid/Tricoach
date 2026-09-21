@@ -4759,14 +4759,43 @@ function renderHealthTab() {
   // Log list
   const logEl = document.getElementById('health-log-list');
   if (!HEALTH.length) { logEl.innerHTML = '<div class="empty"><div class="ico">📊</div>Nog geen gegevens ingevoerd.</div>'; return; }
-  logEl.innerHTML = HEALTH.map(h => `
-    <div style="display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:6px">
-      <strong style="font-family:var(--font-c);font-size:16px;min-width:90px">${h.date}</strong>
-      <span style="font-size:13px;color:var(--t2)">
-        ${h.vo2max != null ? `🫁 VO2 ${h.vo2max.toFixed(1)}` : ''} ${h.body_battery != null ? `🔋 ${h.body_battery}` : ''} ${h.sleep_hours != null ? `😴 ${h.sleep_hours}h` : ''} ${h.hrv != null ? `💓 HRV ${h.hrv}` : ''} ${h.steps != null ? `👟 ${h.steps.toLocaleString('nl-BE')}` : ''}
+
+  const SHOW_INITIAL = 5;
+  const rows = HEALTH.map(h => `
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--border)">
+      <span style="font-family:var(--font-c);font-size:13px;font-weight:700;min-width:84px;color:var(--t2)">${h.date}</span>
+      <span style="font-size:12px;color:var(--t2);flex:1;display:flex;gap:10px;flex-wrap:wrap">
+        ${h.body_battery != null ? `<span>🔋 ${h.body_battery}</span>` : ''}
+        ${h.sleep_hours  != null ? `<span>😴 ${h.sleep_hours}h</span>` : ''}
+        ${h.hrv          != null ? `<span>💓 HRV ${h.hrv}</span>` : ''}
+        ${h.steps        != null ? `<span>👟 ${h.steps.toLocaleString('nl-BE')}</span>` : ''}
+        ${h.vo2max       != null ? `<span>🫁 ${h.vo2max.toFixed(1)}</span>` : ''}
       </span>
-      <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="deleteHealth('${h.id}')">✕</button>
-    </div>`).join('');
+      <button class="btn btn-danger btn-sm" style="opacity:.4;padding:2px 7px;font-size:11px" onclick="deleteHealth('${h.id}')">✕</button>
+    </div>`);
+
+  const visible  = rows.slice(0, SHOW_INITIAL).join('');
+  const hidden   = rows.slice(SHOW_INITIAL).join('');
+  const hasMore  = rows.length > SHOW_INITIAL;
+
+  logEl.innerHTML = `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden">
+      ${visible}
+      ${hasMore ? `
+        <div id="health-log-extra" style="display:none">${hidden}</div>
+        <button onclick="toggleHealthLog(this)" style="width:100%;padding:8px;background:none;border:none;border-top:1px solid var(--border);color:var(--t3);font-size:12px;cursor:pointer">
+          Toon ${rows.length - SHOW_INITIAL} oudere rijen ▾
+        </button>` : ''}
+    </div>`;
+}
+
+function toggleHealthLog(btn) {
+  const extra = document.getElementById('health-log-extra');
+  const open  = extra.style.display !== 'none';
+  extra.style.display = open ? 'none' : 'block';
+  btn.textContent = open
+    ? `Toon ${btn.textContent.match(/\d+/)?.[0] || ''} oudere rijen ▾`
+    : 'Verberg ▴';
 }
 
 function renderHealthCharts() {
