@@ -3694,7 +3694,9 @@ function generatePlan() {
     if (PLAN_OVERRIDES[overrideKey]) {
       const overrides = PLAN_OVERRIDES[overrideKey]; // { day: { remove: true } | { replace: {type, desc, meta} } }
       sessions = sessions.map(s => {
-        const ov = overrides[s.day];
+        // Case-insensitief lookup: 'Ma' en 'ma' matchen allebei
+        const dayKey = Object.keys(overrides).find(k => k.toLowerCase() === s.day.toLowerCase());
+        const ov = dayKey ? overrides[dayKey] : null;
         if (!ov) return s;
         if (ov.remove) return { ...s, type: 'rest', icon: '🛌', desc: 'Rust (coach aanpassing)', meta: '', _coachRemoved: true };
         if (ov.replace) return { ...s, ...ov.replace, _coachEdited: true };
