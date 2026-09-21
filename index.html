@@ -407,11 +407,12 @@ a { color: var(--accent); text-decoration: none; }
 .week-task-item .task-name { font-size:14px; font-weight:600; }
 .week-task-item .task-meta { font-size:12px; color:var(--t2); margin-top:1px; }
 .week-card.open .week-toggle { transform: rotate(180deg); }
+.week-body-inner { display: none; padding: 14px 18px; }
+.week-card.open .week-body-inner { display: block; }
 .sessions-grid {
-  display: none; padding: 14px 18px;
+  display: grid;
   grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 10px;
 }
-.week-card.open .sessions-grid { display: grid; }
 .session-item {
   background: linear-gradient(160deg, var(--bg3) 0%, var(--bg2) 100%);
   border: 1px solid var(--border);
@@ -3041,6 +3042,172 @@ function calcGoalPaces(evt) {
   return result;
 }
 
+// ── ADAPTIEVE TRAININGSANALYSE ─────────────────────────────────────────────────
+// Leest Strava-activiteiten (laatste 14 dagen) + Garmin-signalen om te bepalen
+// of het huidige trainingsplan bijgestuurd moet worden.
+//
+// Outputstructuur:
+//   fatigueLevel   : 'low' | 'moderate' | 'high'
+//   recommendation : 'normal' | 'reduce-light' | 'reduce'
+//   signals        : array van mensleesbare signaalteksten
+//   recentLoad     : { totalMins, runs, bikes, swims, sessions }
+//
+function computeAdaptiveAdjustment() {
+  const now    = new Date();
+  const cutoff = new Date(now.getTime() - 14 * 24 * 3600000);
+
+  // ── Recente Strava-activiteiten ──────────────────────────────────────────
+  const recent = (ACTIVITIES || []).filter(a => {
+    const d = new Date(a.start_date || a.date);
+    return !isNaN(d) && d >= cutoff && d <= now;
+  });
+
+  const totalMins  = recent.reduce((s, a) => s + Math.round((a.moving_time || a.duration || 0) / 60), 0);
+  const typeOf     = a => (a.sport_type || a.type || '').toLowerCase();
+  const runSessions  = recent.filter(a => typeOf(a).includes('run')).length;
+  const bikeSessions = recent.filter(a => typeOf(a).includes('ride') || typeOf(a).includes('bike')).length;
+  const swimSessions = recent.filter(a => typeOf(a).includes('swim')).length;
+  const avgMinsPerWeek = totalMins / 2; // 14 dagen = 2 weken gemiddeld
+
+  // ── Garmin-signalen (per metriek meest recente niet-null waarde) ──────────
+  const latestH    = field => (HEALTH || []).find(h => h[field] != null);
+  const hrv        = latestH('hrv')?.hrv;
+  const battery    = latestH('body_battery')?.body_battery;
+  const sleepScore = latestH('sleep_score')?.sleep_score;
+  const sleepH     = latestH('sleep_hours')?.sleep_hours;
+
+  // ── Signaalscores optellen ───────────────────────────────────────────────
+  let stress   = 0;
+  let positive = 0;
+  const signals = [];
+
+  // HRV
+  if (hrv != null) {
+    if      (hrv < 35) { stress += 2; signals.push(`⚠️ HRV kritiek laag (${hrv} ms) — lichaam onder hoge belasting`); }
+    else if (hrv < 50) { stress += 1; signals.push(`⚡ HRV laag (${hrv} ms) — herstel bewaken`); }
+    else if (hrv >= 70) { positive++;  signals.push(`✅ HRV goed (${hrv} ms)`); }
+  }
+
+  // Body battery
+  if (battery != null) {
+    if      (battery < 20) { stress += 2; signals.push(`⚠️ Body battery kritiek (${battery}/100) — rust noodzakelijk`); }
+    else if (battery < 40) { stress += 1; signals.push(`⚡ Body battery laag (${battery}/100) — intensiteit bewaken`); }
+    else if (battery >= 75) { positive++;  signals.push(`✅ Body battery goed (${battery}/100)`); }
+  }
+
+  // Slaap
+  if (sleepScore != null) {
+    if      (sleepScore < 50) { stress++;  signals.push(`⚡ Slaapkwaliteit matig (${sleepScore}/100)`); }
+    else if (sleepScore >= 80) { positive++; signals.push(`✅ Slaapkwaliteit goed (${sleepScore}/100)`); }
+  }
+  if (sleepH != null && sleepH < 6) {
+    stress++;
+    signals.push(`⚡ Korte slaap (${sleepH}u) — extra herstel plannen`);
+  }
+
+  // Trainingsbelasting
+  if (avgMinsPerWeek > 700) { stress++;    signals.push(`⚡ Hoog trainingsvolume (${Math.round(avgMinsPerWeek)} min/week gem. in 14 dagen)`); }
+  if (avgMinsPerWeek > 1000){ stress++;    signals.push(`⚠️ Zeer hoog volume — risico op overbelasting`); }
+  if (avgMinsPerWeek < 60)  { positive++;  signals.push(`✅ Frisse benen (weinig volume afgelopen 14 dagen)`); }
+
+  // ── Beslissing ───────────────────────────────────────────────────────────
+  let recommendation = 'normal';
+  let fatigueLevel   = 'low';
+
+  if (stress >= 4) {
+    recommendation = 'reduce';
+    fatigueLevel   = 'high';
+  } else if (stress >= 2) {
+    recommendation = 'reduce-light';
+    fatigueLevel   = 'moderate';
+  } else if (stress >= 1 && positive === 0) {
+    recommendation = 'reduce-light';
+    fatigueLevel   = 'moderate';
+  }
+
+  return {
+    fatigueLevel, recommendation, signals,
+    recentLoad: { totalMins, runs: runSessions, bikes: bikeSessions, swims: swimSessions, sessions: recent.length },
+  };
+}
+
+// ── ADAPTIEVE SESSIE-AANPASSINGEN ──────────────────────────────────────────────
+// Past sessie-intensiteit aan op basis van het adaptieve advies.
+// 'reduce'       → zware interval/tempo sessies worden herstelsessies
+// 'reduce-light' → sessies blijven maar krijgen een waarschuwingsnotitie
+// 'normal'       → geen aanpassingen
+//
+function applyAdaptiveAdjustments(sessions, adaptive, z) {
+  if (!adaptive || adaptive.recommendation === 'normal') return sessions;
+
+  const runWarmup    = { kind:'warmup',   secs:600, desc:'10 min opwarmen Z1' };
+  const runCooldown  = { kind:'cooldown', secs:600, desc:'10 min afkoelen Z1' };
+  const bikeWarmup   = { kind:'warmup',   secs:600, desc:'10 min opwarmen Z1' };
+  const bikeCooldown = { kind:'cooldown', secs:600, desc:'10 min afkoelen Z1' };
+
+  return sessions.map(s => {
+    if (s.type === 'rest' || s.type === 'race' || s.type === 'str') return s;
+
+    const isHard = /interval|tempo|sweetspot|vo.?2|sprint|drempel|VO₂|race-pace/i.test(s.name + ' ' + (s.meta || ''));
+
+    if (adaptive.recommendation === 'reduce' && isHard) {
+      // Zware sessie → herstelsessie
+      if (s.type === 'run') {
+        return {
+          ...s,
+          name:'Herstelloop',
+          meta:`30 min Z1 @ ${z.runEasy || '5:30'}/km`,
+          desc:`[🔄 Adaptief aangepast] Vervangen door herstelloop op basis van je Garmin-signalen. Origineel: ${s.name} ${s.meta}`,
+          garminSteps: [
+            runWarmup,
+            { kind:'interval', secs:1200, desc:`20 min Z1 @ ${z.runEasy || '5:30'}/km` },
+            runCooldown,
+          ],
+        };
+      }
+      if (s.type === 'bike') {
+        return {
+          ...s,
+          name:'Herstelrit',
+          meta:'45 min Z1',
+          desc:`[🔄 Adaptief aangepast] Vervangen door herstelrit op basis van je Garmin-signalen. Origineel: ${s.name} ${s.meta}`,
+          garminSteps: [
+            bikeWarmup,
+            { kind:'interval', secs:1500, desc:'25 min Z1' },
+            bikeCooldown,
+          ],
+        };
+      }
+      if (s.type === 'swim') {
+        return {
+          ...s,
+          name:'Techniekzwem',
+          meta:'1200m easy',
+          desc:`[🔄 Adaptief aangepast] Vervangen door easy techniekzwem. Origineel: ${s.name} ${s.meta}`,
+          garminSteps: [
+            { kind:'warmup',   dist:200, desc:'200m easy opwarmen' },
+            { kind:'repeat', sets:4, steps:[
+              { kind:'interval', dist:100, desc:'100m techniek (eenarmig)' },
+              { kind:'recovery', secs:20,  desc:'20s rust' },
+            ]},
+            { kind:'cooldown', dist:200, desc:'200m easy afkoelen' },
+          ],
+        };
+      }
+    }
+
+    if (adaptive.recommendation === 'reduce-light') {
+      // Notitie toevoegen, sessie zelf ongewijzigd
+      return {
+        ...s,
+        desc: (s.desc || '') + (isHard ? ' | ⚡ Luister naar je lichaam: stap terug als het niet gaat vandaag.' : ''),
+      };
+    }
+
+    return s;
+  });
+}
+
 // ── SPORTCATEGORIE HELPER ──────────────────────────────────────────────────────
 // Groepeert eventtypes in categorieën voor multi-event balanslogica.
 // Duathlon = eigen categorie (run+bike, geen zwem) — overlap met tri maar niet identiek.
@@ -3391,10 +3558,21 @@ function generatePlan() {
       sessions = applySecondaryEventBoost(sessions, closestSecEvt, weeksToSec, weekZ);
     }
 
+    // Adaptieve aanpassing — ALLEEN voor de lopende week (w === 0)
+    // Laat recente Strava-activiteiten en Garmin-signalen de sessie-intensiteit bijsturen.
+    // Taper en race weken worden NIET aangepast (deload is al ingebouwd).
+    let adaptive = null;
+    if (w === 0 && phase !== 'race' && phase !== 'taper') {
+      adaptive = computeAdaptiveAdjustment();
+      if (adaptive.recommendation !== 'normal') {
+        sessions = applyAdaptiveAdjustments(sessions, adaptive, weekZ);
+      }
+    }
+
     // Vakantie als laatste — overschrijft alles inclusief availability-scheduling
     sessions = applyVacations(sessions, weekStart, VACATIONS);
 
-    plan.push({ weekNum: w + 1, weekStart, phase, sessions, events: thisWeekEvents });
+    plan.push({ weekNum: w + 1, weekStart, phase, sessions, events: thisWeekEvents, adaptive });
   }
   return plan;
 }
@@ -3487,6 +3665,35 @@ function renderPlan(plan) {
       ? `<span style="font-size:11px;background:rgba(34,197,94,.12);color:var(--accent);border-radius:4px;padding:2px 7px;font-weight:700" title="RPE ${ref.rpe}/10">📝 ${ref.rpe}/10</span>`
       : '';
 
+    // ── Adaptieve banner (alleen lopende week, als er signalen zijn) ──────────
+    let adaptiveBanner = '';
+    if (isCurrent && week.adaptive) {
+      const ad = week.adaptive;
+      const load = ad.recentLoad;
+      const colMap = { low:'rgba(34,197,94,.15)', moderate:'rgba(251,191,36,.15)', high:'rgba(248,113,113,.15)' };
+      const borderMap = { low:'rgba(34,197,94,.4)', moderate:'rgba(251,191,36,.4)', high:'rgba(248,113,113,.5)' };
+      const labelMap = {
+        normal:       '✅ Klaar voor training',
+        'reduce-light':'⚡ Luister naar je lichaam',
+        reduce:       '🔄 Plan aangepast — herstel prioriteit',
+      };
+      const recLabel = labelMap[ad.recommendation] || '';
+      const signalLines = ad.signals.length
+        ? ad.signals.map(s => `<div style="font-size:12px;color:var(--t2);margin-top:3px">${s}</div>`).join('')
+        : '<div style="font-size:12px;color:var(--t3);margin-top:3px">Geen Garmin-signalen beschikbaar</div>';
+      const loadStr = load.sessions > 0
+        ? `${load.sessions} activiteiten · ${Math.round(load.totalMins / 60 * 10) / 10}u totaal · ${load.runs}🏃 ${load.bikes}🚴 ${load.swims}🏊`
+        : 'Geen recente Strava-activiteiten gevonden';
+
+      adaptiveBanner = `
+        <div style="background:${colMap[ad.fatigueLevel]};border:1px solid ${borderMap[ad.fatigueLevel]};border-radius:var(--r-sm);padding:12px 14px;margin:0 0 12px">
+          <div style="font-size:12px;font-weight:700;color:var(--t1);margin-bottom:6px">${recLabel}</div>
+          <div style="font-size:11px;color:var(--t3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Strava (14 dagen)</div>
+          <div style="font-size:12px;color:var(--t2)">${loadStr}</div>
+          ${ad.signals.length ? `<div style="font-size:11px;color:var(--t3);margin-top:8px;text-transform:uppercase;letter-spacing:.05em">Garmin-signalen</div>${signalLines}` : signalLines}
+        </div>`;
+    }
+
     return `
       <div class="week-card phase-${week.phase} ${isCurrent ? 'current-week' : ''} ${isCurrent ? 'open' : ''}">
         <div class="week-header" onclick="toggleWeek(this.parentElement)">
@@ -3503,7 +3710,10 @@ function renderPlan(plan) {
             <span class="week-toggle">▾</span>
           </div>
         </div>
-        <div class="sessions-grid">${sessHtml}</div>
+        <div class="week-body-inner">
+          ${adaptiveBanner}
+          <div class="sessions-grid">${sessHtml}</div>
+        </div>
       </div>`;
   }).join('');
 }
@@ -5228,6 +5438,20 @@ function renderPlanAsChecklist(plan) {
         </div>`;
     }).join('');
 
+    // Adaptieve banner in checklist-view (alleen lopende week)
+    let adaptiveBannerCL = '';
+    if (isCurrent && week.adaptive && week.adaptive.recommendation !== 'normal') {
+      const ad = week.adaptive;
+      const colMap = { moderate:'rgba(251,191,36,.12)', high:'rgba(248,113,113,.12)' };
+      const borderMap = { moderate:'rgba(251,191,36,.35)', high:'rgba(248,113,113,.4)' };
+      const labelMap = { 'reduce-light':'⚡ Luister naar je lichaam', reduce:'🔄 Plan aangepast — herstel prioriteit' };
+      adaptiveBannerCL = `
+        <div style="background:${colMap[ad.fatigueLevel]||'rgba(251,191,36,.12)'};border:1px solid ${borderMap[ad.fatigueLevel]||'rgba(251,191,36,.35)'};border-radius:8px;padding:10px 12px;margin:0 14px 8px">
+          <div style="font-size:12px;font-weight:700;color:var(--t1)">${labelMap[ad.recommendation]||''}</div>
+          ${ad.signals.slice(0,3).map(s=>`<div style="font-size:11px;color:var(--t2);margin-top:2px">${s}</div>`).join('')}
+        </div>`;
+    }
+
     return `
       <div class="week-task-card ${isCurrent ? 'current-week' : ''}">
         <div class="week-task-header">
@@ -5237,6 +5461,7 @@ function renderPlanAsChecklist(plan) {
           </div>
           <span class="phase-badge phase-${week.phase}">${phaseLabels[week.phase] || week.phase}</span>
         </div>
+        ${adaptiveBannerCL}
         ${activeSessions.length ? `<div class="week-task-list">${sessHtml}</div>` : '<div style="padding:10px 14px;font-size:13px;color:var(--t3)">Race of rustweek</div>'}
       </div>`;
   }).join('');
