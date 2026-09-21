@@ -2742,6 +2742,33 @@ function makeSessions(z, phase, type, weekNum, evt) {
     });
   }
 
+  // ── FALLBACK voor onbekende eventtypes ────────────────────────────────────────
+  // Als geen enkel patroon hierboven matcht (bijv. custom event), genereer dan een
+  // generiek aëroob basisplan zodat de week nooit leeg blijft.
+  if (!sessions.length) {
+    const bikeWarmupFb  = { kind:'warmup',  secs:600, desc:'10 min Z1' };
+    const bikeCooldownFb= { kind:'cooldown',secs:600, desc:'10 min Z1' };
+    const runWarmupFb   = { kind:'warmup',  secs:600, desc:'10 min Z1' };
+    const runCooldownFb = { kind:'cooldown',secs:600, desc:'10 min Z1' };
+    sessions.push(
+      { day:'Ma', type:'rest', name:'Rust', meta:'', desc:'Hersteldag' },
+      { day:'Di', type:'run',  name:'Duurloop', meta:'40 min Z2',
+        desc:'Aëroob fundament — hartslag laag houden',
+        garminSteps: [ runWarmupFb, { kind:'interval', secs:1200, desc:'20 min Z2' }, runCooldownFb ] },
+      { day:'Wo', type:'bike', name:'Duurrit', meta:'60 min Z2',
+        desc:'Cross-training — herstel na loop, andere spiergroepen',
+        garminSteps: [ bikeWarmupFb, { kind:'interval', secs:2400, desc:'40 min Z2' }, bikeCooldownFb ] },
+      { day:'Do', type:'run',  name:'Tempoloop', meta:'30 min met 15 min tempo',
+        desc:'Lichte kwaliteitssessie',
+        garminSteps: [ runWarmupFb, { kind:'interval', secs:900, desc:`15 min @ ${z.runTempo || '4:30'}/km` }, runCooldownFb ] },
+      { day:'Vr', type:'str',  name:'Kracht', meta:'30 min', desc:'Core en functionele kracht' },
+      { day:'Za', type:'run',  name:'Lange duurloop', meta:'60 min Z2',
+        desc:'Langste sessie van de week',
+        garminSteps: [ runWarmupFb, { kind:'interval', secs:2400, desc:'40 min Z2' }, runCooldownFb ] },
+      { day:'Zo', type:'rest', name:'Rust', meta:'', desc:'Volledig herstel' }
+    );
+  }
+
   return sessions;
 }
 
@@ -3014,6 +3041,178 @@ function calcGoalPaces(evt) {
   return result;
 }
 
+// ── SPORTCATEGORIE HELPER ──────────────────────────────────────────────────────
+// Groepeert eventtypes in categorieën voor multi-event balanslogica.
+// Duathlon = eigen categorie (run+bike, geen zwem) — overlap met tri maar niet identiek.
+function sportCat(type) {
+  if (['HIM','IM','olympic-tri','sprint-tri'].includes(type)) return 'tri';
+  if (['5K','10K','HM','marathon'].includes(type)) return 'run';
+  if (type === 'bike-race') return 'bike';
+  if (type === 'swim-race') return 'swim';
+  if (type === 'duathlon') return 'du';
+  return 'other';
+}
+
+// ── SECUNDAIR EVENT BOOST ──────────────────────────────────────────────────────
+// Wanneer een event van een ANDER sporttype binnen 10 weken nadert worden SPECIFIEKE
+// sessies aangepast zodat de atleet ook voor dat event klaar is — zonder de
+// basistraining voor het primaire event te laten vallen.
+//
+// Aanpassingsregel: één sessie per week, altijd de sessie die het minst kritisch is
+// voor het primaire event.
+//
+// GEVAL 1  Tri-primair  + Run-secundair   → Za lange fiets  → Za lange loop
+//          Zwem (di) + fiets+brick (wo) blijven → triathlonbasis gewaarborgd
+//
+// GEVAL 2  Run-primair  + Tri-secundair   → Wo cross-training fiets → Wo zwem
+//          Alle loopsessies (di, do, za) blijven intact
+//
+// GEVAL 3  Fiets-primair + Run-secundair  → Zo herstelrit → Zo herstelloop
+//          Intensieve fietsdagen (di VO2, za lange rit) blijven
+//
+// GEVAL 4  Run-primair  + Fiets-secundair → Wo cross-training fiets → kwaliteitsrit
+//          (de fiets is al cross-training, upgrade naar meer volume/intensiteit)
+//
+// GEVAL 5  Tri-primair  + Fiets-secundair → Za langere fiets + notitie
+//          (tri plan heeft al veel fiets, kleine upgrade volstaat)
+//
+function applySecondaryEventBoost(sessions, secEvt, weeksAway, z) {
+  // Boost actief van 1 t/m 10 weken voor het secundaire event.
+  // < 1 week: taper is al aan het werk (phase-logica in generatePlan).
+  // > 10 weken: te ver weg, primaire training heeft prioriteit.
+  if (!secEvt || weeksAway < 1 || weeksAway > 10) return sessions;
+
+  const secCat = sportCat(secEvt.type);
+  const result = [...sessions];
+
+  const runWarmup    = { kind:'warmup',   secs:600, desc:'10 min opwarmen Z1' };
+  const runCooldown  = { kind:'cooldown', secs:600, desc:'10 min afkoelen Z1' };
+  const swimWarmup   = { kind:'warmup',   dist:400, desc:'400m easy opwarmen' };
+  const swimCooldown = { kind:'cooldown', dist:200, desc:'200m easy afkoelen' };
+  const bikeWarmup   = { kind:'warmup',   secs:600, desc:'10 min opwarmen Z1' };
+  const bikeCooldown = { kind:'cooldown', secs:600, desc:'10 min afkoelen Z1' };
+
+  const secLabel = secEvt.name || secEvt.type;
+
+  // ── Kenmerken van het huidige sessieblok detecteren ────────────────────────
+  const hasSwim  = sessions.some(s => s.type === 'swim');
+  const runCount = sessions.filter(s => s.type === 'run' && s.name !== 'Rust').length;
+  const bikeCount= sessions.filter(s => s.type === 'bike').length;
+  const isPrimTri  = hasSwim;                        // tri-plan heeft altijd een zwem
+  const isPrimRun  = !hasSwim && runCount >= 3;      // run-plan: 3+ lopsessies, geen zwem
+  const isPrimBike = !hasSwim && bikeCount >= 3 && runCount <= 1; // fietsplan: 3+ fiets, max 1 loop
+
+  // ── GEVAL 1: Tri + Run-secundair ──────────────────────────────────────────
+  // Za lange fiets → Za lange loop (race-specifiek voor run-event)
+  // Triathlonbasis: zwem di, fiets+brick wo → BLIJVEN
+  if (isPrimTri && secCat === 'run') {
+    const zaIdx = result.findIndex(s => s.day === 'Za' && s.type === 'bike');
+    if (zaIdx >= 0) {
+      const t = secEvt.type;
+      // Basisafstand schalen op de raceafstand
+      const baseDist = t === 'marathon' ? 28000 : t === 'HM' ? 18000 : t === '10K' ? 14000 : 10000;
+      // Progressief volume: verder weg = iets meer (opbouw), dichter bij = iets minder (taper begint)
+      const runDist = weeksAway <= 3 ? Math.round(baseDist * 0.75)
+        : weeksAway <= 6 ? baseDist
+        : Math.round(baseDist * 1.1);
+      const runKm = Math.round(runDist / 1000);
+      result[zaIdx] = {
+        day:'Za', type:'run',
+        name:'Lange loop',
+        meta:`${runKm} km Z2 @ ${z.runEasy}/km`,
+        desc:`${secLabel}-prep (${weeksAway}w) — lange loop i.p.v. fietsrit. Triathlonbasis: zwem (di) + fiets/brick (wo) blijft.`,
+        garminSteps: [
+          runWarmup,
+          { kind:'interval', dist:runDist, desc:`${runKm} km Z2 @ ${z.runEasy}/km` },
+          runCooldown,
+        ],
+      };
+    }
+  }
+
+  // ── GEVAL 2: Run + Tri-secundair ──────────────────────────────────────────
+  // Wo cross-training fiets → Wo triathlon-zwem
+  // Loopbasis (di interval, do tempo/duur, za lange loop) → BLIJFT
+  if (isPrimRun && secCat === 'tri') {
+    const woIdx = result.findIndex(s => s.day === 'Wo' && s.type === 'bike');
+    if (woIdx >= 0) {
+      const swimDist = weeksAway <= 4 ? 2200 : 1800;
+      result[woIdx] = {
+        day:'Wo', type:'swim',
+        name:'Triathlon-prep zwem',
+        meta:`${swimDist}m techniek + duur`,
+        desc:`${secLabel}-prep (${weeksAway}w) — zwem i.p.v. cross-training fiets. Loopbasis intact.`,
+        garminSteps: [
+          swimWarmup,
+          { kind:'repeat', sets:4, steps:[
+            { kind:'interval', dist:200, desc:'200m drill (eenarmig, rotatie)' },
+            { kind:'recovery', dist:100, desc:'100m easy' },
+          ]},
+          { kind:'interval', dist:swimDist - 1000, desc:`${swimDist - 1000}m duur` },
+          swimCooldown,
+        ],
+      };
+    }
+  }
+
+  // ── GEVAL 3: Fiets + Run-secundair ──────────────────────────────────────
+  // Zo herstelrit → Zo herstelloop (cross-training voor loopbeen-activatie)
+  // Intensieve fietsdagen (di VO2, za lange rit) → BLIJVEN
+  if (isPrimBike && secCat === 'run') {
+    const zoIdx = result.findIndex(s => s.day === 'Zo' && s.type === 'bike');
+    if (zoIdx >= 0) {
+      const runMins = weeksAway <= 4 ? 50 : 40;
+      result[zoIdx] = {
+        day:'Zo', type:'run',
+        name:'Cross-training loop',
+        meta:`${runMins} min Z1-Z2 @ ${z.runEasy}/km`,
+        desc:`${secLabel}-prep (${weeksAway}w) — herstelloop i.p.v. herstelrit. Fietsbasis intact.`,
+        garminSteps: [
+          runWarmup,
+          { kind:'interval', secs:(runMins - 20) * 60, desc:`${runMins - 20} min Z1-Z2 @ ${z.runEasy}/km` },
+          runCooldown,
+        ],
+      };
+    }
+  }
+
+  // ── GEVAL 4: Run + Fiets-secundair ────────────────────────────────────────
+  // Wo cross-training (al een fiets) → upgrade naar kwaliteitsrit
+  // Loopsessies (di, do, za) → BLIJVEN
+  if (isPrimRun && secCat === 'bike') {
+    const woIdx = result.findIndex(s => s.day === 'Wo' && s.type === 'bike');
+    if (woIdx >= 0) {
+      const rideMin = weeksAway <= 4 ? 75 : 60;
+      result[woIdx] = {
+        ...result[woIdx],
+        name:'Fietskwaliteit',
+        meta:`${rideMin} min Z2-Z3`,
+        desc:`${secLabel}-prep (${weeksAway}w) — kwaliteitsrit i.p.v. korte cross-training. Loopbasis intact.`,
+        garminSteps: [
+          bikeWarmup,
+          { kind:'interval', secs:(rideMin - 20) * 60, desc:`${rideMin - 20} min Z2-Z3` },
+          bikeCooldown,
+        ],
+      };
+    }
+  }
+
+  // ── GEVAL 5: Tri + Fiets-secundair ────────────────────────────────────────
+  // Tri-plan heeft al een lange fiets op za → verleng de rit en voeg notitie toe.
+  // Geen sessie vervangen, alleen meta-aanpassing.
+  if (isPrimTri && secCat === 'bike') {
+    const zaIdx = result.findIndex(s => s.day === 'Za' && s.type === 'bike');
+    if (zaIdx >= 0 && weeksAway <= 6) {
+      result[zaIdx] = {
+        ...result[zaIdx],
+        desc:(result[zaIdx].desc || '') + ` | ${secLabel}-prep (${weeksAway}w): extra fietsvolume bewust opgebouwd.`,
+      };
+    }
+  }
+
+  return result;
+}
+
 function generatePlan() {
   const now    = new Date();
   const zBase  = calcZones(getEffectivePaces()); // basiszone vanuit profiel
@@ -3153,13 +3352,45 @@ function generatePlan() {
     const goalOverride = calcGoalPaces(nextEvt);
     const weekZ = goalOverride ? { ...zBase, ...goalOverride } : zBase;
 
-    let sessions = makeSessions(weekZ, phase, nextEvt.type, w + 1, nextEvt);
+    // Sessie-TYPE (swim/bike/run mix) wordt bepaald door het A-prioriteit event of het zwaarste event.
+    // Het eerstvolgende event (nextEvt) bepaalt de FASE (taper/build/base).
+    // Uitzondering: taper/race fase gebruikt altijd nextEvt.type voor de correcte raceweek-invulling.
+    // Zwaarste eventtypes eerst: multi-sport events krijgen voorrang omdat ze meer disciplines vereisen.
+    // Bij gelijkwaardige prioriteit (bijv. 2 A-events) bepaalt dit de sportmix van het hele plan.
+    const priorityOrder = ['IM','HIM','olympic-tri','marathon','duathlon','HM','sprint-tri','10K','5K'];
+    const aEvent = future.find(e => e.priority === 'A');
+    const heaviestEvt = future.slice().sort((a,b) =>
+      (priorityOrder.indexOf(a.type) - priorityOrder.indexOf(b.type))
+    )[0];
+    const sportTypeEvt = (phase === 'race' || phase === 'taper')
+      ? nextEvt                              // raceweek/taper: sessies voor dát specifieke event
+      : (aEvent || heaviestEvt || nextEvt);  // anders: A-event of zwaarste event bepaalt de sportmix
+
+    // Secundair event: het dichtstbijzijnde event met een ANDER sporttype dan het primaire.
+    // In de 1-8 weken voor dit event worden specifieke sessies aangepast (zie applySecondaryEventBoost).
+    // Niet toepassen in taper/race/recovery — die fases zijn al event-specifiek.
+    const primaryCat = sportCat(sportTypeEvt.type);
+    const closestSecEvt = (phase !== 'taper' && phase !== 'race' && phase !== 'recovery')
+      ? future
+          .filter(e => sportCat(e.type) !== primaryCat && new Date(e.date) > weekStart)
+          .sort((a,b) => new Date(a.date) - new Date(b.date))[0]
+      : null;
+
+    let sessions = makeSessions(weekZ, phase, sportTypeEvt.type, w + 1, nextEvt);
     sessions = applyInjuries(sessions, INJURIES, weekStart);
     if (Object.keys(AVAILABILITY).length) {
       sessions = scheduleWithAvailability(sessions, AVAILABILITY);
     }
     // Periodisatie NA beschikbaarheidsscheduling — anders worden omgewisselde sessies niet gecheckt
     sessions = enforcePeriodization(sessions);
+
+    // Secundaire event boost NA periodisatie — past za/wo sessies aan voor de naderende race
+    if (closestSecEvt) {
+      const msPerWk2 = 7 * 24 * 3600000;
+      const weeksToSec = Math.ceil((new Date(closestSecEvt.date) - weekStart) / msPerWk2);
+      sessions = applySecondaryEventBoost(sessions, closestSecEvt, weeksToSec, weekZ);
+    }
+
     // Vakantie als laatste — overschrijft alles inclusief availability-scheduling
     sessions = applyVacations(sessions, weekStart, VACATIONS);
 
