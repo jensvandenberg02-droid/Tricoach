@@ -1987,20 +1987,101 @@ function updateCountdown() {
 
 // ── TRAINING PLAN ─────────────────────────────────────────────
 function calcZones(p) {
-  const ftp     = p?.ftp || 200;
-  const pace    = paceToSec(p?.run_pace || '5:30');
-  const swimCss = paceToSec(p?.swim_css || '1:40');
+  const ftp    = p?.ftp    || 200;
+  const maxHr  = p?.max_hr || 185;
+  const pace   = paceToSec(p?.run_pace  || '5:30');
+  const swimCss= paceToSec(p?.swim_css  || '1:40');
+
+  // ── Watt zones (Coggan 5-zone model, % van FTP) ─────────────────────────
+  const wZ = (lo, hi) => [Math.round(ftp * lo), Math.round(ftp * hi)];
+  const w1 = wZ(0,    0.55); // Actief herstel
+  const w2 = wZ(0.55, 0.75); // Uithoudingsvermogen
+  const w3 = wZ(0.75, 0.87); // Tempo
+  const w4 = wZ(0.87, 1.05); // Drempel / sweetspot
+  const w5 = wZ(1.05, 1.20); // VO₂max
+
+  // ── Hartslagzones (5-zone model, % van max HR) ──────────────────────────
+  const hZ = (lo, hi) => [Math.round(maxHr * lo), Math.round(maxHr * hi)];
+  const h1 = hZ(0.50, 0.60); // Herstel
+  const h2 = hZ(0.60, 0.72); // Aëroob / Z2
+  const h3 = hZ(0.72, 0.82); // Tempo
+  const h4 = hZ(0.82, 0.92); // Drempel
+  const h5 = hZ(0.92, 1.00); // VO₂max
+
+  const wStr = z => `${z[0]}-${z[1]}W`;
+  const hStr = z => `${z[0]}-${z[1]} bpm`;
+
   return {
-    ftp,
-    z1: Math.round(ftp * .55), z2: Math.round(ftp * .75),
-    z3: Math.round(ftp * .87), z4: Math.round(ftp * .95),
-    z5: Math.round(ftp * 1.05),
+    ftp, maxHr,
+    // Enkelvoudige wattwaarden voor Garmin (bestaande velden, ongewijzigd)
+    z1: w1[1], z2: w2[1], z3: w3[1], z4: Math.round(ftp * .95), z5: w5[0],
+    // Watt-zonerangen (voor display en meta-labels)
+    wZ1:wStr(w1), wZ2:wStr(w2), wZ3:wStr(w3), wZ4:wStr(w4), wZ5:wStr(w5),
+    // Hartslag-zonerangen
+    hZ1:hStr(h1), hZ2:hStr(h2), hZ3:hStr(h3), hZ4:hStr(h4), hZ5:hStr(h5),
+    // Ruwe getallen voor zone-legenda
+    _w:[w1,w2,w3,w4,w5], _h:[h1,h2,h3,h4,h5],
+    // Loop- en zwempaces (bestaand)
     runEasy:   secToPace(pace * 1.2),
     runTempo:  secToPace(pace * 1.05),
     runFast:   secToPace(pace * .95),
     swimEasy:  secToPace(swimCss * 1.1),
     swimTempo: secToPace(swimCss),
   };
+}
+
+// ── ZONE-TARGETS TOEVOEGEN AAN SESSIES ────────────────────────────────────────
+// Post-processor: voegt de concrete HR- en watt-doelwaarden toe aan elk sessie-meta.
+// Loopsessies krijgen een hartslagzone (❤️), fietssessies een watt-range (⚡) + ❤️,
+// zwemmen behouden pace (nauwkeurigste metriek in het water).
+//
+function addZoneTargets(sessions, z) {
+  const zoneOf = text => {
+    const m = text.match(/Z([1-5])/);
+    return m ? parseInt(m[1]) : null;
+  };
+  const wArr = z._w; // [[lo,hi], ...]
+  const hArr = z._h;
+
+  return sessions.map(s => {
+    if (!s.meta || s.type === 'rest' || s.type === 'str' || s.type === 'race' || s.type === 'swim') return s;
+
+    const combined = s.name + ' ' + s.meta + ' ' + (s.desc || '');
+    let extraMeta = '';
+
+    if (s.type === 'run') {
+      // Detecteer zone-getal uit tekst (Z1…Z5 of "interval/tempo/fast")
+      let zn = zoneOf(combined);
+      if (!zn) {
+        if (/interval|vo.?2|sprint/i.test(combined)) zn = 5;
+        else if (/tempo|drempel|threshold/i.test(combined)) zn = 4;
+        else if (/easy|herstel|duur|Z1/i.test(combined)) zn = 1;
+        else zn = 2; // default = Z2 aëroob
+      }
+      const h = hArr[zn - 1];
+      if (h) extraMeta = ` · ❤️ ${h[0]}-${h[1]} bpm`;
+
+    } else if (s.type === 'bike') {
+      // Fiets: al dan niet wattwaarden in meta → voeg watt-range toe als het er nog niet in zit
+      // en voeg ❤️ zone toe
+      let zn = zoneOf(combined);
+      if (!zn) {
+        if (/vo.?2|sprint|z5/i.test(combined))        zn = 5;
+        else if (/sweetspot|drempel|z4/i.test(combined)) zn = 4;
+        else if (/tempo|z3/i.test(combined))              zn = 3;
+        else                                               zn = 2;
+      }
+      const w = wArr[zn - 1];
+      const h = hArr[zn - 1];
+      // Watt-range alleen toevoegen als er nog geen "W" in de meta staat (vermijd herhaling)
+      if (w && !/\d+W/.test(s.meta)) extraMeta += ` · ⚡ ${w[0]}-${w[1]}W`;
+      if (h) extraMeta += ` · ❤️ ${h[0]}-${h[1]} bpm`;
+      // Als er al watt-enkelvoud staat (bijv. "@ 190W sweetspot"), voeg dan alleen ❤️ toe
+      if (/\d+W/.test(s.meta) && h) extraMeta = ` · ❤️ ${h[0]}-${h[1]} bpm`;
+    }
+
+    return extraMeta ? { ...s, meta: s.meta + extraMeta } : s;
+  });
 }
 
 function paceToSec(s) {
@@ -3569,6 +3650,9 @@ function generatePlan() {
       }
     }
 
+    // Zone-targets toevoegen (HR en watt) aan alle actieve sessies
+    sessions = addZoneTargets(sessions, weekZ);
+
     // Vakantie als laatste — overschrijft alles inclusief availability-scheduling
     sessions = applyVacations(sessions, weekStart, VACATIONS);
 
@@ -3613,6 +3697,33 @@ function renderPlan(plan) {
   } else {
     grid.innerHTML = '';
   }
+
+  // ── Persoonlijke zone-legenda ──────────────────────────────────────────────
+  const zLeg = calcZones(getEffectivePaces());
+  const zoneNames  = ['Z1 Herstel','Z2 Aëroob','Z3 Tempo','Z4 Drempel','Z5 VO₂max'];
+  const zoneColors = ['#64748b','#22c55e','#f59e0b','#f97316','#ef4444'];
+  const hrCols = zLeg._h || [];
+  const wCols  = zLeg._w || [];
+  const zoneLegendRows = zoneNames.map((name, i) => {
+    const hr = hrCols[i] ? `${hrCols[i][0]}-${hrCols[i][1]} bpm` : '—';
+    const w  = wCols[i]  ? `${wCols[i][0]}-${wCols[i][1]}W`     : '—';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${zoneColors[i]};flex-shrink:0"></span>
+      <span style="font-size:12px;font-weight:700;color:var(--t1);min-width:90px">${name}</span>
+      <span style="font-size:12px;color:var(--t2);flex:1">❤️ ${hr}</span>
+      <span style="font-size:12px;color:var(--t2)">⚡ ${w}</span>
+    </div>`;
+  }).join('');
+  grid.innerHTML += `
+    <details style="margin-bottom:14px">
+      <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;list-style:none;display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--bg2);border-radius:var(--r-sm);border:1px solid var(--border)">
+        <span style="font-size:10px">▸</span> Jouw trainingszones &nbsp;·&nbsp; ❤️ max ${zLeg.maxHr} bpm &nbsp;·&nbsp; ⚡ FTP ${zLeg.ftp}W
+      </summary>
+      <div style="background:var(--card);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r-sm) var(--r-sm);padding:6px 14px 2px">
+        ${zoneLegendRows}
+        <div style="font-size:11px;color:var(--t3);padding:8px 0">Zones automatisch berekend op basis van je profiel. Pas max HR en FTP aan in je profieltabblad voor nauwkeurigere zones.</div>
+      </div>
+    </details>`;
 
   const now  = new Date();
   const today = now.toISOString().slice(0, 10);
